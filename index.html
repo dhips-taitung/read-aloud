@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>TTS 語音卡牌學習系統</title>
+  <style>
+    :root { 
+      --primary: #4f46e5; 
+      --primary-hover: #4338ca;
+      --text: #333; 
+      --border: #ddd; 
+      --bg: #f9f9f9; 
+      --loop-active: #10b981; 
+      --pause-color: #f59e0b; 
+      --card-bg: #ffffff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { 
+      height: 100dvh; 
+      width: 100%; 
+      overflow: hidden; 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); 
+      color: var(--text);
+    }
+
+    /* 頂部導覽列 */
+    .navbar {
+      height: 52px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+    }
+    .navbar .title { font-weight: bold; font-size: 16px; color: var(--primary); }
+    .navbar .nav-actions { display: flex; gap: 8px; }
+    .btn-nav {
+      padding: 6px 12px;
+      background: #eef2ff;
+      color: var(--primary);
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* 視圖容器 */
+    .app-container {
+      height: calc(100dvh - 52px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .view-section {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      overflow-y: auto;
+      background: var(--bg);
+      transition: opacity 0.2s ease;
+    }
+    .hidden { display: none !important; }
+
+    /* 首頁：卡牌格線 */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      padding-bottom: 20px;
+    }
+    .topic-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      min-height: 110px;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      transition: all 0.2s ease;
+    }
+    .topic-card:active { transform: scale(0.97); background: #eef2ff; }
+    .topic-card .card-icon { font-size: 26px; margin-bottom: 8px; }
+    .topic-card .card-title { font-size: 15px; font-weight: bold; color: var(--text); }
+
+    /* 播放器介面 */
+    .player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .controls { 
+      flex-shrink: 0; 
+      background: #fff; 
+      padding: 10px; 
+      border-radius: 8px; 
+      border: 1px solid #eee; 
+      display: flex; 
+      flex-direction: column; 
+      gap: 8px; 
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      z-index: 10;
+      margin-bottom: 10px;
+    }
+
+    .content-wrapper {
+      flex-grow: 1;           
+      display: flex;
+      flex-direction: column;
+      min-height: 0; 
+    }
+
+    textarea {
+      width: 100%; 
+      height: 100%;           
+      flex-grow: 1;
+      padding: 15px; 
+      font-size: 17px; 
+      line-height: 1.6;
+      border: 1px solid var(--border); 
+      border-radius: 8px; 
+      outline: none; 
+      resize: none; 
+      color: var(--text);
+      overflow-y: auto;       
+      background: #fff;
+    }
+    textarea:focus { border-color: var(--primary); }
+
+    .row { display: flex; flex-direction: column; gap: 4px; }
+    .speed-control-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px;
+    }
+    .btn-speed {
+      width: 44px;
+      height: 36px;
+      background: #eef2ff;
+      color: var(--primary);
+      border: none;
+      border-radius: 4px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .speed-display {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--text);
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .btn-group { display: flex; gap: 8px; margin-top: 4px; }
+    .btn { 
+      border: none; 
+      border-radius: 6px; 
+      font-size: 15px; 
+      font-weight: 600; 
+      color: white; 
+      cursor: pointer; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      transition: opacity 0.2s;
+    }
+    .btn-main { flex: 2; padding: 12px; } 
+    .btn-play { background-color: var(--primary); }
+    .btn-stop { background-color: #ef4444; display: none; }
+    .btn-pause { background-color: var(--pause-color); display: none; }
+    .btn-loop { flex: 1; background-color: #9ca3af; font-size: 18px; }
+    .btn-loop.active { background-color: var(--loop-active); }
+    .status { text-align: center; font-size: 12px; color: #888; margin-top: 2px; min-height: 16px; }
+
+    /* 後台管理樣式 */
+    .admin-card {
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .admin-card h3 { font-size: 15px; margin-bottom: 10px; color: var(--primary); }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+    .form-input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      outline: none;
+    }
+    .form-input:focus { border-color: var(--primary); }
+    .btn-action {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 9px 14px;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .data-table th, .data-table td {
+      border: 1px solid var(--border);
+      padding: 8px;
+      text-align: left;
+    }
+    .data-table th { background: #f3f4f6; }
+    .btn-del {
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* 驗證彈窗 Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      width: 85%;
+      max-width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 頂部導航 -->
+  <div class="navbar">
+    <div class="title" id="page-title">🎙️ 語音主題卡牌</div>
+    <div class="nav-actions">
+      <button class="btn-nav" id="btn-nav-home" onclick="showView('home')">首頁卡牌</button>
+      <button class="btn-nav" id="btn-nav-player" onclick="showView('player')">自訂播放</button>
+      <button class="btn-nav" id="btn-nav-admin" onclick="openAdminAuth()">後台管理</button>
+    </div>
+  </div>
+
+  <div class="app-container">
+
+    <!-- 1. 首頁：主題卡牌列表 -->
+    <div id="view-home" class="view-section">
+      <div id="card-list" class="card-grid"></div>
+    </div>
+
+    <!-- 2. 前台：內容播放器 -->
+    <div id="view-player" class="view-section hidden">
+      <div class="player-header">
+        <button class="btn-nav" onclick="showView('home')">← 返回主題列表</button>
+        <span id="playing-topic-name" style="font-weight: bold; font-size: 14px; color: var(--primary);">自訂內容</span>
+      </div>
+
+      <div class="controls">
+        <div class="row">
+          <div style="font-size:12px; font-weight:600; color:#555;">語速 (Speed)</div>
+          <div class="speed-control-group">
+            <button type="button" id="btn-slow" class="btn-speed">－</button>
+            <span id="rate-display" class="speed-display">1.0</span>
+            <button type="button" id="btn-fast" class="btn-speed">＋</button>
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button type="button" id="play-btn" class="btn btn-main btn-play">▶ 播放</button>
+          <button type="button" id="pause-btn" class="btn btn-main btn-pause">⏸ 暫停</button>
+          <button type="button" id="stop-btn" class="btn btn-main btn-stop">⏹ 停止</button>
+          <button type="button" id="loop-btn" class="btn btn-loop" title="重複播放">🔁</button>
+        </div>
+
+        <div class="status" id="status-msg"></div>
+      </div>
+
+      <div class="content-wrapper">
+        <textarea id="text-input" placeholder="請輸入文字... (輸入 # 可設定自動暫停點 / 區段循環點)"></textarea>
+      </div>
+    </div>
+
+    <!-- 3. 後台管理 -->
+    <div id="view-admin" class="view-section hidden">
+      <div class="admin-card">
+        <h3>🔗 Google 試算表串接 (GAS Web App)</h3>
+        <div class="form-group">
+          <input type="text" id="gas-api-url" class="form-input" placeholder="請貼上 Apps Script 網頁應用程式網址">
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-action" onclick="saveGasUrl()">儲存網址並同步</button>
+          <button class="btn-nav" onclick="fetchSheetData()">🔄 重新整理</button>
+        </div>
+      </div>
+
+      <div class="admin-card">
+        <h3>➕ 新增資料欄位</h3>
+        <div class="form-group">
+          <label style="font-size: 12px; font-weight: 600;">主題 (Topic)</label>
+          <input type="text" id="new-topic" class="form-input" placeholder="例：日常問候">
+        </div>
+        <div class="form-group">
+          <label style="font-size: 12px; font-weight: 600;">內容 (Content)</label>
+          <textarea id="new-content" class="form-input" style="height: 80px;" placeholder="輸入朗讀文字，支援 # 分段"></textarea>
+        </div>
+        <button class="btn-action" onclick="addCardData()">新增至試算表與前台</button>
+      </div>
+
+      <div class="admin-card">
+        <h3>📋 現有資料欄位列表</h3>
+        <div style="overflow-x: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 25%;">主題</th>
+                <th>內容</th>
+                <th style="width: 60px; text-align: center;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 後台驗證碼彈窗 -->
+  <div id="modal-auth" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3 style="font-size: 16px;">🔐 後台驗證</h3>
+      <p style="font-size: 13px; color: #666;">請輸入管理員密碼：</p>
+      <input type="password" id="auth-code" class="form-input" placeholder="請輸入驗證碼" value="">
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn-nav" onclick="closeAuthModal()">取消</button>
+        <button class="btn-action" onclick="submitAuth()">確認登入</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+     * 1. 資料存儲與 Google Apps Script 串接模組
+     * ============================================================ */
+    const DEFAULT_AUTH_CODE = "1127";
+    let gasApiUrl = localStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
+    
+    // 預設示範資料
+    let cardsData = JSON.parse(localStorage.getItem('tts_cards_data')) || [
+      { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！' },
+      { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #' },
+      { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。# 吐氣，一、二、三。#' }
+    ];
+
+    function initData() {
+      const savedGas = localStorage.getItem('gas_api_url');
+      if (savedGas) {
+        document.getElementById('gas-api-url').value = savedGas;
+        fetchSheetData();
+      } else {
+        renderHomeCards();
+        renderAdminTable();
+      }
+    }
+
+    function saveGasUrl() {
+      const url = document.getElementById('gas-api-url').value.trim();
+      localStorage.setItem('gas_api_url', url);
+      gasApiUrl = url;
+      alert('GAS 網址已儲存！');
+      fetchSheetData();
+    }
+
+    async function fetchSheetData() {
+      if (!gasApiUrl) {
+        renderHomeCards();
+        renderAdminTable();
+        return;
+      }
+      try {
+        const res = await fetch(gasApiUrl);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          cardsData = data;
+          localStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+          renderHomeCards();
+          renderAdminTable();
+        }
+      } catch (err) {
+        console.warn('GAS 讀取失敗，使用本機快取資料:', err);
+        renderHomeCards();
+        renderAdminTable();
+      }
+    }
+
+    async function addCardData() {
+      const topicInput = document.getElementById('new-topic');
+      const contentInput = document.getElementById('new-content');
+      const topic = topicInput.value.trim();
+      const content = contentInput.value.trim();
+
+      if (!topic || !content) {
+        alert('請輸入主題與內容！');
+        return;
+      }
+
+      const newItem = { id: Date.now().toString(), topic, content };
+      cardsData.push(newItem);
+      localStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+      renderHomeCards();
+      renderAdminTable();
+
+      topicInput.value = '';
+      contentInput.value = '';
+
+      if (gasApiUrl) {
+        try {
+          await fetch(gasApiUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'add', ...newItem })
+          });
+        } catch (e) {
+          console.error('寫入 Google 試算表失敗:', e);
+        }
+      }
+      alert('新增成功！');
+    }
+
+    async function deleteCardData(id) {
+      if (!confirm('確定要刪除此筆資料嗎？')) return;
+
+      cardsData = cardsData.filter(item => item.id.toString() !== id.toString());
+      localStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+      renderHomeCards();
+      renderAdminTable();
+
+      if (gasApiUrl) {
+        try {
+          await fetch(gasApiUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete', id: id.toString() })
+          });
+        } catch (e) {
+          console.error('從 Google 試算表刪除失敗:', e);
+        }
+      }
+    }
+
+    /* ============================================================
+     * 2. 畫面切換與後台權限模組
+     * ============================================================ */
+    function showView(viewName) {
+      document.getElementById('view-home').classList.add('hidden');
+      document.getElementById('view-player').classList.add('hidden');
+      document.getElementById('view-admin').classList.add('hidden');
+
+      if (viewName === 'home') {
+        document.getElementById('view-home').classList.remove('hidden');
+        document.getElementById('page-title').textContent = '🎙️ 語音主題卡牌';
+      } else if (viewName === 'player') {
+        document.getElementById('view-player').classList.remove('hidden');
+        document.getElementById('page-title').textContent = '🔊 文字朗讀播放';
+      } else if (viewName === 'admin') {
+        document.getElementById('view-admin').classList.remove('hidden');
+        document.getElementById('page-title').textContent = '⚙️ 後台資料管理';
+      }
+    }
+
+    function openAdminAuth() {
+      document.getElementById('auth-code').value = '';
+      document.getElementById('modal-auth').classList.remove('hidden');
+      document.getElementById('auth-code').focus();
+    }
+
+    function closeAuthModal() {
+      document.getElementById('modal-auth').classList.add('hidden');
+    }
+
+    function submitAuth() {
+      const code = document.getElementById('auth-code').value;
+      if (code === DEFAULT_AUTH_CODE) {
+        closeAuthModal();
+        showView('admin');
+      } else {
+        alert('驗證碼錯誤！');
+      }
+    }
+
+    function renderHomeCards() {
+      const container = document.getElementById('card-list');
+      container.innerHTML = '';
+      
+      cardsData.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'topic-card';
+        card.innerHTML = `
+          <div class="card-icon">📑</div>
+          <div class="card-title">${item.topic}</div>
+        `;
+        card.onclick = () => selectTopicAndPlay(item);
+        container.appendChild(card);
+      });
+    }
+
+    function renderAdminTable() {
+      const tbody = document.getElementById('admin-table-body');
+      tbody.innerHTML = '';
+
+      cardsData.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="font-weight: 600;">${item.topic}</td>
+          <td style="color: #666; font-size: 12px; white-space: pre-wrap;">${item.content}</td>
+          <td style="text-align: center;">
+            <button class="btn-del" onclick="deleteCardData('${item.id}')">刪除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function selectTopicAndPlay(item) {
+      document.getElementById('text-input').value = item.content;
+      document.getElementById('playing-topic-name').textContent = `主題：${item.topic}`;
+      showView('player');
+      // 觸發自動播放
+      playBtn.click();
+    }
+
+    /* ============================================================
+     * 3. TTS 語音核心模組（含分段與區段循環播放）
+     * ============================================================ */
+    const synth = window.speechSynthesis;
+    const textInput = document.getElementById('text-input');
+
+    const btnSlow = document.getElementById('btn-slow');
+    const btnFast = document.getElementById('btn-fast');
+    const rateDisplay = document.getElementById('rate-display');
+
+    const playBtn = document.getElementById('play-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const loopBtn = document.getElementById('loop-btn');
+    const statusMsg = document.getElementById('status-msg');
+
+    let bestVoice = null;
+    let isLooping = false;
+    let isManualStop = false;
+    let isPausedState = false;
+
+    let currentRate = 1.0;
+    let sentenceQueue = [];
+    let currentSentenceIndex = 0;
+
+    let loopStartIndex = 0;
+    let loopEndIndex = null;
+
+    let audioContext = null;
+    function unlockAudioContext() {
+      try {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+        const buffer = audioContext.createBuffer(1, 1, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+      } catch (e) {}
+    }
+
+    function autoSelectBestVoice() {
+      const allVoices = synth.getVoices();
+      if (!allVoices || allVoices.length === 0) return;
+
+      const sortedVoices = [...allVoices].sort((a, b) => {
+        const langA = (a.lang || '').toLowerCase().replace('_', '-');
+        const langB = (b.lang || '').toLowerCase().replace('_', '-');
+
+        const getScore = (lang) => {
+          if (lang.includes('zh-tw')) return 6;
+          if (lang.includes('zh-hk')) return 5;
+          if (lang.includes('zh'))    return 4;
+          if (lang.includes('en-us')) return 3;
+          if (lang.includes('en'))    return 2;
+          return 0;
+        };
+
+        const scoreA = getScore(langA);
+        const scoreB = getScore(langB);
+
+        if (scoreA > scoreB) return -1;
+        if (scoreA < scoreB) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+      bestVoice = sortedVoices[0] || null;
+    }
+
+    autoSelectBestVoice();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = autoSelectBestVoice;
+    }
+    setTimeout(autoSelectBestVoice, 100);
+    setTimeout(autoSelectBestVoice, 1000);
+
+    function updateRateDisplay() {
+      rateDisplay.textContent = currentRate.toFixed(1);
+    }
+
+    btnSlow.addEventListener('click', () => {
+      if (currentRate > 0.5) {
+        currentRate -= 0.1;
+        currentRate = parseFloat(currentRate.toFixed(1));
+        updateRateDisplay();
+      }
+    });
+
+    btnFast.addEventListener('click', () => {
+      if (currentRate < 3.0) {
+        currentRate += 0.1;
+        currentRate = parseFloat(currentRate.toFixed(1));
+        updateRateDisplay();
+      }
+    });
+
+    loopBtn.addEventListener('click', () => {
+      isLooping = !isLooping;
+      loopBtn.classList.toggle('active', isLooping);
+      if (!isPausedState && (pauseBtn.style.display === 'flex')) {
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "播放中";
+      }
+    });
+
+    function splitTextIntoChunks(text) {
+      const regex = /[^#。？！.?!;\n\r]+[。？！.?!;\n\r]*|#/g;
+      const chunks = text.match(regex);
+      return chunks || [text];
+    }
+
+    function findNextHashIndex(startIndex) {
+      for (let i = startIndex; i < sentenceQueue.length; i++) {
+        if ((sentenceQueue[i] || '').trim() === '#') return i;
+      }
+      return null;
+    }
+
+    function playNextChunk() {
+      if (isManualStop || isPausedState) return;
+
+      if (currentSentenceIndex >= sentenceQueue.length) {
+        resetUI();
+        return;
+      }
+
+      const chunkText = sentenceQueue[currentSentenceIndex];
+
+      if (chunkText.trim() === '#') {
+        if (isLooping) {
+          loopStartIndex = Math.max(0, loopStartIndex);
+          currentSentenceIndex = loopStartIndex;
+          statusMsg.textContent = "🔁 區段循環中";
+          setTimeout(() => { playNextChunk(); }, 50);
+          return;
+        }
+        currentSentenceIndex++;
+        pauseSpeak();
+        statusMsg.textContent = "已暫停";
+        return;
+      }
+
+      const utterThis = new SpeechSynthesisUtterance(chunkText);
+      if (bestVoice) {
+        utterThis.voice = bestVoice;
+        utterThis.lang = bestVoice.lang;
+      }
+      utterThis.rate = currentRate;
+      utterThis.pitch = 1.0;
+
+      utterThis.onend = () => {
+        if (isManualStop || isPausedState) return;
+        currentSentenceIndex++;
+        if (isLooping && loopEndIndex === null) {
+          loopEndIndex = findNextHashIndex(loopStartIndex);
+        }
+        playNextChunk();
+      };
+
+      utterThis.onerror = (e) => {
+        if (e.error !== 'interrupted' && e.error !== 'canceled') {
+          if (!isManualStop) {
+            currentSentenceIndex++;
+            playNextChunk();
+          }
+        }
+      };
+
+      synth.speak(utterThis);
+    }
+
+    function speak() {
+      if (isPausedState) {
+        resumeSpeak();
+        return;
+      }
+
+      const fullText = textInput.value;
+      if (fullText.trim() === '') {
+        textInput.focus();
+        return;
+      }
+
+      const startPos = textInput.selectionStart || 0;
+      let textSegment = fullText.substring(startPos);
+      if (textSegment.trim().length === 0) textSegment = fullText;
+      textSegment = textSegment.trim();
+
+      isManualStop = false;
+      isPausedState = false;
+      currentSentenceIndex = 0;
+
+      updateUIState('playing');
+      sentenceQueue = splitTextIntoChunks(textSegment);
+      loopStartIndex = 0;
+      loopEndIndex = findNextHashIndex(loopStartIndex);
+
+      setTimeout(() => {
+        playNextChunk();
+      }, 50);
+    }
+
+    playBtn.addEventListener('click', (e) => {
+      if(e) e.preventDefault();
+      isManualStop = true;
+      synth.cancel();
+      unlockAudioContext();
+
+      const unlockUtterance = new SpeechSynthesisUtterance(" ");
+      unlockUtterance.volume = 0;
+      synth.speak(unlockUtterance);
+
+      setTimeout(() => {
+        speak();
+      }, 120);
+    });
+
+    function pauseSpeak() {
+      isPausedState = true;
+      synth.cancel();
+      updateUIState('paused');
+    }
+
+    function resumeSpeak() {
+      if (!isPausedState) return;
+      isPausedState = false;
+      isManualStop = false;
+      updateUIState('playing');
+      playNextChunk();
+    }
+
+    pauseBtn.addEventListener('click', () => {
+      if (isPausedState) resumeSpeak();
+      else pauseSpeak();
+    });
+
+    stopBtn.addEventListener('click', (e) => {
+      if(e) e.preventDefault();
+      isManualStop = true;
+      sentenceQueue = [];
+      synth.cancel();
+      resetUI();
+    });
+
+    function updateUIState(state) {
+      if (state === 'playing') {
+        playBtn.style.display = 'none';
+        pauseBtn.style.display = 'flex';
+        pauseBtn.textContent = "⏸ 暫停";
+        stopBtn.style.display = 'flex';
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "播放中";
+      } else if (state === 'paused') {
+        playBtn.style.display = 'none';
+        pauseBtn.style.display = 'flex';
+        pauseBtn.textContent = "▶ 繼續";
+        stopBtn.style.display = 'flex';
+        statusMsg.textContent = "暫停";
+      } else if (state === 'stopped') {
+        playBtn.style.display = 'flex';
+        pauseBtn.style.display = 'none';
+        stopBtn.style.display = 'none';
+        pauseBtn.textContent = "⏸ 暫停";
+        statusMsg.textContent = "";
+      }
+    }
+
+    function resetUI() {
+      isPausedState = false;
+      isManualStop = false;
+      currentSentenceIndex = 0;
+      loopStartIndex = 0;
+      loopEndIndex = null;
+      updateUIState('stopped');
+    }
+
+    // 初始化程式
+    window.addEventListener('DOMContentLoaded', initData);
+  </script>
+</body>
+</html>
