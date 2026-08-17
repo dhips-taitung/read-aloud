@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
-  <!-- 核心關鍵：解除 Google 雲端語音 403 防盜鏈阻擋，保證免登入、廣告看板發聲 -->
+  <!-- 核心：解除 Google 雲端語音 403 防盜鏈阻擋 -->
   <meta name="referrer" content="no-referrer">
 
   <title>TTS 語音卡牌學習系統</title>
@@ -104,7 +104,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
       gap: 16px;
-      padding-bottom: 30px;
+      padding-bottom: 90px; /* 預留浮動按鈕空間 */
     }
     .topic-card {
       border: 1px solid rgba(0,0,0,0.1);
@@ -162,6 +162,7 @@
       flex-direction: column;
       min-height: 0; 
       height: 100%;
+      padding-bottom: 80px; /* 預留浮動按鈕空間 */
     }
 
     /* 朗讀內容文字框（標楷體） */
@@ -363,11 +364,44 @@
       flex-direction: column;
       gap: 14px;
     }
+
+    /* ============================================================
+     * 浮動操作按鈕樣式 (Floating Action Buttons)
+     * ============================================================ */
+    .fab-dock {
+      position: fixed;
+      right: 18px;
+      bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 50;
+    }
+    .fab-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .fab-btn:active { transform: scale(0.92); }
+    .fab-home { background: #ffffff; color: var(--primary); border: 2px solid #e0e7ff; }
+    .fab-play { background: var(--primary); color: #ffffff; }
+    .fab-pause { background: var(--pause-color); color: #ffffff; }
+    .fab-stop { background: #ef4444; color: #ffffff; }
   </style>
 </head>
 
 <body>
-  <!-- 頂部導航 -->
+  <!-- 頂部導覽列 -->
   <div class="navbar">
     <div class="title" id="page-title">🎙️ 語音主題卡牌</div>
     <div class="nav-actions">
@@ -419,6 +453,12 @@
     <!-- 3. 後台管理 -->
     <div id="view-admin" class="view-section hidden">
       
+      <!-- 後台頂部標題與登出按鈕 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="font-size: 18px; color: var(--primary);">⚙️ 後台資料與格式管理</h2>
+        <button class="btn-del" onclick="logoutAdmin()" style="padding: 7px 14px; font-weight: bold;">🚪 登出後台</button>
+      </div>
+
       <!-- 樣式自訂面板 -->
       <div class="admin-card">
         <h3>🎨 卡牌與字體格式設定</h3>
@@ -506,12 +546,20 @@
 
   </div>
 
+  <!-- 浮動操作鈕 (FAB: 首頁、播放/暫停、停止) -->
+  <div class="fab-dock">
+    <button class="fab-btn fab-home" onclick="stopAndBackHome()" title="返回首頁">🏠</button>
+    <button id="fab-play-btn" class="fab-btn fab-play" onclick="handleFabPlay()" title="播放/暫停">▶</button>
+    <button class="fab-btn fab-stop" onclick="stopAudio()" title="停止播放">⏹</button>
+  </div>
+
   <!-- 後台驗證碼彈窗 -->
   <div id="modal-auth" class="modal-overlay hidden">
     <div class="modal-box">
       <h3 style="font-size: 17px;">🔐 後台驗證</h3>
-      <p style="font-size: 14px; color: #666;">請輸入管理員密碼：</p>
-      <input type="password" id="auth-code" class="form-input" placeholder="請輸入驗證碼" value="">
+      <p style="font-size: 14px; color: #666;">請輸入管理員密碼 (按 Enter 直接登入)：</p>
+      <!-- 支援 Enter 鍵直接登入 -->
+      <input type="password" id="auth-code" class="form-input" placeholder="請輸入驗證碼" onkeydown="if(event.key === 'Enter') submitAuth();">
       <div style="display: flex; gap: 8px; justify-content: flex-end;">
         <button class="btn-nav" onclick="closeAuthModal()">取消</button>
         <button class="btn-action" onclick="submitAuth()">確認登入</button>
@@ -576,6 +624,13 @@
         } catch (e) {
           this.memory[key] = val;
         }
+      },
+      removeItem: function(key) {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          delete this.memory[key];
+        }
       }
     };
 
@@ -626,12 +681,13 @@
     function setEditColor(c) { document.getElementById('edit-bgcolor').value = c; }
 
     /* ============================================================
-     * 2. 資料存儲與 CRUD
+     * 2. 資料存儲與 CRUD (預設卡牌保護機制)
      * ============================================================ */
     const DEFAULT_AUTH_CODE = "1127";
     let gasApiUrl = SafeStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
     
-    let defaultDemoData = [
+    // 預設卡牌資料
+    const defaultDemoData = [
       { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！', bgColor: '#fef3c7' },
       { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
       { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。# 吐氣，一、二、三。#', bgColor: '#dcfce7' }
@@ -639,13 +695,18 @@
 
     let cardsData = [];
     try {
-      cardsData = JSON.parse(SafeStorage.getItem('tts_cards_data')) || defaultDemoData;
-    } catch(e) {
-      cardsData = defaultDemoData;
+      cardsData = JSON.parse(SafeStorage.getItem('tts_cards_data'));
+    } catch(e) {}
+    
+    // 若無資料或被刪光，自動載入預設卡牌
+    if (!Array.isArray(cardsData) || cardsData.length === 0) {
+      cardsData = JSON.parse(JSON.stringify(defaultDemoData));
     }
 
     function initData() {
       loadCustomStyles();
+      updateRateDisplay(); // 初始化預設語速顯示
+
       var savedGas = SafeStorage.getItem('gas_api_url');
       if (savedGas) {
         document.getElementById('gas-api-url').value = savedGas;
@@ -673,7 +734,7 @@
       try {
         var res = await fetch(gasApiUrl);
         var data = await res.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           cardsData = data.map(function(item) {
             return {
               id: item.id ? item.id.toString() : Date.now().toString(),
@@ -682,10 +743,13 @@
               bgColor: item.bgColor || '#ffffff'
             };
           });
-          SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
-          renderHomeCards();
-          renderAdminTable();
+        } else {
+          // 試算表若為空，載入預設卡牌
+          cardsData = JSON.parse(JSON.stringify(defaultDemoData));
         }
+        SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+        renderHomeCards();
+        renderAdminTable();
       } catch (err) {
         console.warn('GAS 讀取失敗，使用本機快取資料:', err);
         renderHomeCards();
@@ -782,6 +846,13 @@
       if (!confirm('確定要刪除此筆資料嗎？')) return;
 
       cardsData = cardsData.filter(function(item) { return item.id.toString() !== id.toString(); });
+
+      // 若刪除全部主題，自動恢復預設卡牌
+      if (cardsData.length === 0) {
+        cardsData = JSON.parse(JSON.stringify(defaultDemoData));
+        alert('已刪除所有自建主題，系統已為您自動載入預設卡牌！');
+      }
+
       SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
       renderHomeCards();
       renderAdminTable();
@@ -799,7 +870,7 @@
     }
 
     /* ============================================================
-     * 3. 畫面切換與後台權限
+     * 3. 畫面切換與後台權限 (保持登入與登出機制)
      * ============================================================ */
     function showView(viewName) {
       document.getElementById('view-home').classList.add('hidden');
@@ -818,10 +889,18 @@
       }
     }
 
+    // 若已登入過未按登出，直接進入後台
     function openAdminAuth() {
+      var isLogged = SafeStorage.getItem('is_admin_logged_in');
+      if (isLogged === 'true') {
+        showView('admin');
+        return;
+      }
       document.getElementById('auth-code').value = '';
       document.getElementById('modal-auth').classList.remove('hidden');
-      document.getElementById('auth-code').focus();
+      setTimeout(function() {
+        document.getElementById('auth-code').focus();
+      }, 100);
     }
 
     function closeAuthModal() {
@@ -831,11 +910,19 @@
     function submitAuth() {
       var code = document.getElementById('auth-code').value;
       if (code === DEFAULT_AUTH_CODE) {
+        SafeStorage.setItem('is_admin_logged_in', 'true'); // 儲存登入狀態
         closeAuthModal();
         showView('admin');
       } else {
         alert('驗證碼錯誤！');
       }
+    }
+
+    // 後台登出功能
+    function logoutAdmin() {
+      SafeStorage.removeItem('is_admin_logged_in');
+      alert('已成功登出後台！');
+      showView('home');
     }
 
     function renderHomeCards() {
@@ -888,7 +975,7 @@
     }
 
     /* ============================================================
-     * 4. 雲端高音質語音串流引擎 (HTML5 Audio + 403 繞過技術)
+     * 4. 雲端高音質語音串流引擎 (HTML5 Audio 引擎)
      * ============================================================ */
     const audioPlayer = new Audio();
     const textInput = document.getElementById('text-input');
@@ -902,19 +989,24 @@
     const stopBtn = document.getElementById('stop-btn');
     const loopBtn = document.getElementById('loop-btn');
     const statusMsg = document.getElementById('status-msg');
+    const fabPlayBtn = document.getElementById('fab-play-btn');
 
     let isLooping = false;
     let isManualStop = false;
     let isPausedState = false;
 
-    let currentRate = 1.0;
+    /* ============================================================
+     * 📍【預設語音速度修改位置】：
+     * 可修改下方的 1.0 (例如改為 0.9 或 1.2)
+     * ============================================================ */
+    let currentRate = 1.0; 
+
     let sentenceQueue = [];
     let currentSentenceIndex = 0;
 
     let loopStartIndex = 0;
     let loopEndIndex = null;
 
-    // 建立免登入、無阻擋的雲端高音質語音 URL
     function getCloudTtsUrl(text) {
       const isEnglishOnly = /^[a-zA-Z0-9\s.,?!'#\-]+$/.test(text);
       const lang = isEnglishOnly ? 'en-US' : 'zh-TW';
@@ -922,7 +1014,7 @@
     }
 
     function updateRateDisplay() {
-      rateDisplay.textContent = currentRate.toFixed(1);
+      if (rateDisplay) rateDisplay.textContent = currentRate.toFixed(1);
       audioPlayer.playbackRate = currentRate;
     }
 
@@ -963,7 +1055,6 @@
       return null;
     }
 
-    // 逐句播放核心
     function playNextChunk() {
       if (isManualStop || isPausedState) return;
 
@@ -980,7 +1071,6 @@
         return;
       }
 
-      // 遇到 # 標籤處理
       if (chunkText === '#') {
         if (isLooping) {
           loopStartIndex = Math.max(0, loopStartIndex);
@@ -997,14 +1087,13 @@
 
       statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
 
-      // 設定音訊串流來源並播放
       audioPlayer.src = getCloudTtsUrl(chunkText);
       audioPlayer.playbackRate = currentRate;
 
       var playPromise = audioPlayer.play();
       if (playPromise !== undefined) {
         playPromise.catch(function(err) {
-          console.warn("音訊播放受阻，重試下一句:", err);
+          console.warn("音訊播放受阻:", err);
           if (!isManualStop && !isPausedState) {
             currentSentenceIndex++;
             playNextChunk();
@@ -1013,7 +1102,6 @@
       }
     }
 
-    // 當句播放完畢自動接續下一句
     audioPlayer.onended = function() {
       if (isManualStop || isPausedState) return;
       currentSentenceIndex++;
@@ -1026,7 +1114,6 @@
       playNextChunk();
     };
 
-    // 啟動朗讀
     function startSpeakingNow() {
       audioPlayer.pause();
       isManualStop = false;
@@ -1035,6 +1122,11 @@
 
       var fullText = textInput.value;
       if (fullText.trim() === '') {
+        // 若在首頁直接點浮動播放，載入第一張卡牌
+        if (cardsData.length > 0) {
+          selectTopicAndPlay(cardsData[0]);
+          return;
+        }
         textInput.focus();
         return;
       }
@@ -1050,6 +1142,22 @@
       loopEndIndex = findNextHashIndex(loopStartIndex);
 
       playNextChunk();
+    }
+
+    // 浮動播放按鈕控制
+    function handleFabPlay() {
+      if (document.getElementById('view-player').classList.contains('hidden')) {
+        showView('player');
+      }
+      if (isPausedState) {
+        resumeSpeak();
+      } else if (audioPlayer.paused && sentenceQueue.length > 0 && currentSentenceIndex < sentenceQueue.length) {
+        resumeSpeak();
+      } else if (!audioPlayer.paused) {
+        pauseSpeak();
+      } else {
+        startSpeakingNow();
+      }
     }
 
     playBtn.addEventListener('click', function(e) {
@@ -1102,18 +1210,30 @@
         pauseBtn.textContent = "⏸ 暫停";
         stopBtn.style.display = 'flex';
         statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
+        if (fabPlayBtn) {
+          fabPlayBtn.textContent = '⏸';
+          fabPlayBtn.className = 'fab-btn fab-pause';
+        }
       } else if (state === 'paused') {
         playBtn.style.display = 'none';
         pauseBtn.style.display = 'flex';
         pauseBtn.textContent = "▶ 繼續";
         stopBtn.style.display = 'flex';
         statusMsg.textContent = "已暫停";
+        if (fabPlayBtn) {
+          fabPlayBtn.textContent = '▶';
+          fabPlayBtn.className = 'fab-btn fab-play';
+        }
       } else if (state === 'stopped') {
         playBtn.style.display = 'flex';
         pauseBtn.style.display = 'none';
         stopBtn.style.display = 'none';
         pauseBtn.textContent = "⏸ 暫停";
         statusMsg.textContent = "";
+        if (fabPlayBtn) {
+          fabPlayBtn.textContent = '▶';
+          fabPlayBtn.className = 'fab-btn fab-play';
+        }
       }
     }
 
