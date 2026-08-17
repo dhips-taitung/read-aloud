@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- 核心關鍵：解除 Google 雲端語音 403 防盜鏈阻擋，保證免登入、廣告看板發聲 -->
+  <meta name="referrer" content="no-referrer">
+
   <title>TTS 語音卡牌學習系統</title>
   
   <!-- 引入雲端標楷體 Web Font -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/earlyaccess/cwtexkai.css">
-
-  <!-- 引入 Puter.js 免費 AI 雲端語音庫 (無 403 阻擋，保證發聲) -->
-  <script src="https://js.puter.com/v2/"></script>
 
   <style>
     :root { 
@@ -240,7 +241,7 @@
     .btn-pause { background-color: var(--pause-color); display: none; }
     .btn-loop { flex: 1; background-color: #9ca3af; font-size: 20px; }
     .btn-loop.active { background-color: var(--loop-active); }
-    .status { text-align: center; font-size: 13px; color: #6366f1; font-weight: 600; min-height: 18px; }
+    .status { text-align: center; font-size: 13px; color: #4f46e5; font-weight: 600; min-height: 18px; }
 
     /* 後台管理樣式 */
     .admin-card {
@@ -368,7 +369,7 @@
 <body>
   <!-- 頂部導航 -->
   <div class="navbar">
-    <div class="title" id="page-title">🎙️ 語音主題卡牌 (AI 雲端語音版)</div>
+    <div class="title" id="page-title">🎙️ 語音主題卡牌 (高音質免登入版)</div>
     <div class="nav-actions">
       <button class="btn-nav" onclick="showView('home')">首頁卡牌</button>
       <button class="btn-nav" onclick="showView('player')">自訂播放</button>
@@ -887,9 +888,9 @@
     }
 
     /* ============================================================
-     * 4. Puter AI 雲端神經網路語音核心 (無 403 跨域阻擋)
+     * 4. 雲端高音質語音串流引擎 (HTML5 Audio + 403 繞過技術)
      * ============================================================ */
-    let currentAudioObj = null;
+    const audioPlayer = new Audio();
     const textInput = document.getElementById('text-input');
 
     const btnSlow = document.getElementById('btn-slow');
@@ -913,11 +914,16 @@
     let loopStartIndex = 0;
     let loopEndIndex = null;
 
+    // 建立免登入、無阻擋的雲端高音質語音 URL
+    function getCloudTtsUrl(text) {
+      const isEnglishOnly = /^[a-zA-Z0-9\s.,?!'#\-]+$/.test(text);
+      const lang = isEnglishOnly ? 'en-US' : 'zh-TW';
+      return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + lang + '&q=' + encodeURIComponent(text);
+    }
+
     function updateRateDisplay() {
       rateDisplay.textContent = currentRate.toFixed(1);
-      if (currentAudioObj) {
-        try { currentAudioObj.playbackRate = currentRate; } catch(e){}
-      }
+      audioPlayer.playbackRate = currentRate;
     }
 
     btnSlow.addEventListener('click', function() {
@@ -940,7 +946,7 @@
       isLooping = !isLooping;
       loopBtn.classList.toggle('active', isLooping);
       if (!isPausedState && (pauseBtn.style.display === 'flex')) {
-        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (AI雲端)";
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
       }
     });
 
@@ -957,8 +963,8 @@
       return null;
     }
 
-    // 播放下一句語音核心
-    async function playNextChunk() {
+    // 逐句播放核心
+    function playNextChunk() {
       if (isManualStop || isPausedState) return;
 
       if (currentSentenceIndex >= sentenceQueue.length) {
@@ -989,71 +995,40 @@
         return;
       }
 
-      statusMsg.textContent = "⏳ 載入 AI 語音中...";
+      statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
 
-      // 首選方案：使用 Puter AI 雲端神經網路語音 (支援中英混讀，無 403 限制)
-      if (window.puter && window.puter.ai && typeof window.puter.ai.txt2speech === 'function') {
-        try {
-          var isEnglish = /^[a-zA-Z0-9\s.,?!'#\-]+$/.test(chunkText);
-          var lang = isEnglish ? 'en-US' : 'zh-TW';
+      // 設定音訊串流來源並播放
+      audioPlayer.src = getCloudTtsUrl(chunkText);
+      audioPlayer.playbackRate = currentRate;
 
-          var audio = await puter.ai.txt2speech(chunkText, { language: lang });
-          if (isManualStop || isPausedState) return;
-
-          currentAudioObj = audio;
-          audio.playbackRate = currentRate;
-
-          audio.onended = function() {
-            if (isManualStop || isPausedState) return;
-            currentSentenceIndex++;
-            playNextChunk();
-          };
-
-          audio.onerror = function() {
-            fallbackSpeak(chunkText);
-          };
-
-          await audio.play();
-          statusMsg.textContent = isLooping ? "🔁 區段循環中 (AI雲端)" : "▶ 播放中 (AI雲端高音質)";
-          return;
-        } catch (err) {
-          console.warn('Puter AI 載入失敗，切換備用播放通道:', err);
-        }
-      }
-
-      // 備援方案：瀏覽器原生語音
-      fallbackSpeak(chunkText);
-    }
-
-    function fallbackSpeak(text) {
-      if ('speechSynthesis' in window && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-        var utterThis = new SpeechSynthesisUtterance(text);
-        utterThis.lang = 'zh-TW';
-        utterThis.rate = currentRate;
-
-        utterThis.onend = function() {
-          if (isManualStop || isPausedState) return;
-          currentSentenceIndex++;
-          playNextChunk();
-        };
-
-        utterThis.onerror = function() {
+      var playPromise = audioPlayer.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(function(err) {
+          console.warn("音訊播放受阻，重試下一句:", err);
           if (!isManualStop && !isPausedState) {
             currentSentenceIndex++;
             playNextChunk();
           }
-        };
-
-        window.speechSynthesis.speak(utterThis);
-        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中";
-      } else {
-        statusMsg.textContent = "⚠️ 語音元件載入中，請重試";
+        });
       }
     }
 
+    // 當句播放完畢自動接續下一句
+    audioPlayer.onended = function() {
+      if (isManualStop || isPausedState) return;
+      currentSentenceIndex++;
+      playNextChunk();
+    };
+
+    audioPlayer.onerror = function() {
+      if (isManualStop || isPausedState) return;
+      currentSentenceIndex++;
+      playNextChunk();
+    };
+
+    // 啟動朗讀
     function startSpeakingNow() {
-      stopAudio(false);
+      audioPlayer.pause();
       isManualStop = false;
       isPausedState = false;
       currentSentenceIndex = 0;
@@ -1088,8 +1063,7 @@
 
     function pauseSpeak() {
       isPausedState = true;
-      if (currentAudioObj) currentAudioObj.pause();
-      if (window.speechSynthesis) window.speechSynthesis.pause();
+      audioPlayer.pause();
       updateUIState('paused');
     }
 
@@ -1098,13 +1072,9 @@
       isPausedState = false;
       isManualStop = false;
       updateUIState('playing');
-      if (currentAudioObj && currentAudioObj.paused) {
-        currentAudioObj.play().catch(function() {
-          playNextChunk();
-        });
-      } else {
+      audioPlayer.play().catch(function() {
         playNextChunk();
-      }
+      });
     }
 
     pauseBtn.addEventListener('click', function() {
@@ -1112,25 +1082,17 @@
       else pauseSpeak();
     });
 
-    function stopAudio(resetUiState = true) {
+    function stopAudio() {
       isManualStop = true;
-      if (currentAudioObj) {
-        try {
-          currentAudioObj.pause();
-          currentAudioObj.currentTime = 0;
-        } catch(e){}
-        currentAudioObj = null;
-      }
-      if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      audioPlayer.pause();
+      audioPlayer.currentTime = 0;
       sentenceQueue = [];
-      if (resetUiState) resetUI();
+      resetUI();
     }
 
     stopBtn.addEventListener('click', function(e) {
       if (e) e.preventDefault();
-      stopAudio(true);
+      stopAudio();
     });
 
     function updateUIState(state) {
@@ -1139,6 +1101,7 @@
         pauseBtn.style.display = 'flex';
         pauseBtn.textContent = "⏸ 暫停";
         stopBtn.style.display = 'flex';
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
       } else if (state === 'paused') {
         playBtn.style.display = 'none';
         pauseBtn.style.display = 'flex';
