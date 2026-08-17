@@ -29,7 +29,6 @@
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* 修正相容性：使用標準 height: 100% 與 100vh，徹底解決廣告機 100dvh 塌陷問題 */
     html, body { 
       height: 100%; 
       min-height: 100%;
@@ -72,7 +71,7 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* 內容容器：使用 flex 填滿剩餘高度 */
+    /* 內容容器 */
     .app-container {
       flex: 1 1 auto;
       width: 100%;
@@ -237,7 +236,7 @@
     .btn-pause { background-color: var(--pause-color); display: none; }
     .btn-loop { flex: 1; background-color: #9ca3af; font-size: 20px; }
     .btn-loop.active { background-color: var(--loop-active); }
-    .status { text-align: center; font-size: 13px; color: #888; min-height: 18px; }
+    .status { text-align: center; font-size: 13px; color: #666; min-height: 18px; font-weight: 500; }
 
     /* 後台管理樣式 */
     .admin-card {
@@ -555,7 +554,7 @@
 
   <script>
     /* ============================================================
-     * 安全儲存封裝（防廣告機 LocalStorage 權限崩潰）
+     * 安全儲存封裝
      * ============================================================ */
     const SafeStorage = {
       memory: {},
@@ -879,17 +878,18 @@
     }
 
     function stopAndBackHome() {
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopAllAudio();
       isManualStop = true;
       resetUI();
       showView('home');
     }
 
     /* ============================================================
-     * 4. TTS 語音核心模組
+     * 4. 雙軌智能 TTS 語音核心（本地 SpeechSynthesis + 雲端語音備援）
      * ============================================================ */
     const synth = ('speechSynthesis' in window) ? window.speechSynthesis : null;
     const textInput = document.getElementById('text-input');
+    const cloudAudio = new Audio(); // 雲端音訊備援播放器
 
     const btnSlow = document.getElementById('btn-slow');
     const btnFast = document.getElementById('btn-fast');
@@ -902,6 +902,8 @@
     const statusMsg = document.getElementById('status-msg');
 
     let bestVoice = null;
+    let hasChineseVoice = false;
+    let forceCloudTts = false; // 是否強制切換為雲端 TTS
     let isLooping = false;
     let isManualStop = false;
     let isPausedState = false;
@@ -912,6 +914,7 @@
 
     let loopStartIndex = 0;
     let loopEndIndex = null;
+    let watchdogTimer = null;
 
     let audioContext = null;
     function unlockAudioContext() {
@@ -926,32 +929,32 @@
     }
 
     function autoSelectBestVoice() {
-      if (!synth) return;
+      if (!synth) {
+        forceCloudTts = true;
+        return;
+      }
       var allVoices = synth.getVoices();
-      if (!allVoices || allVoices.length === 0) return;
+      if (!allVoices || allVoices.length === 0) {
+        return;
+      }
 
-      var sortedVoices = [].slice.call(allVoices).sort(function(a, b) {
-        var langA = (a.lang || '').toLowerCase().replace('_', '-');
-        var langB = (b.lang || '').toLowerCase().replace('_', '-');
-
-        var getScore = function(lang) {
-          if (lang.indexOf('zh-tw') !== -1) return 6;
-          if (lang.indexOf('zh-hk') !== -1) return 5;
-          if (lang.indexOf('zh') !== -1)    return 4;
-          if (lang.indexOf('en-us') !== -1) return 3;
-          if (lang.indexOf('en') !== -1)    return 2;
-          return 0;
-        };
-
-        var scoreA = getScore(langA);
-        var scoreB = getScore(langB);
-
-        if (scoreA > scoreB) return -1;
-        if (scoreA < scoreB) return 1;
-        return (a.name || '').localeCompare(b.name || '');
+      var chineseVoices = allVoices.filter(function(v) {
+        var lang = (v.lang || '').toLowerCase();
+        return lang.indexOf('zh') !== -1 || lang.indexOf('cmn') !== -1;
       });
 
-      bestVoice = sortedVoices[0] || null;
+      if (chineseVoices.length > 0) {
+        hasChineseVoice = true;
+        // 優先挑選台灣繁體
+        var twVoice = chineseVoices.find(function(v) {
+          return (v.lang || '').toLowerCase().indexOf('zh-tw') !== -1;
+        });
+        bestVoice = twVoice || chineseVoices[0];
+      } else {
+        hasChineseVoice = false;
+        // 若系統完全無中文語音包，自動採用雲端語音
+        forceCloudTts = true;
+      }
     }
 
     if (synth) {
@@ -985,7 +988,7 @@
       isLooping = !isLooping;
       loopBtn.classList.toggle('active', isLooping);
       if (!isPausedState && (pauseBtn.style.display === 'flex')) {
-        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "播放中";
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "🔊 播放中";
       }
     });
 
@@ -1002,8 +1005,60 @@
       return null;
     }
 
+    function stopAllAudio() {
+      if (synth) {
+        try { synth.cancel(); } catch(e){}
+      }
+      try {
+        cloudAudio.pause();
+        cloudAudio.currentTime = 0;
+      } catch(e){}
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+    }
+
+    /* 雲端語音播放備援（相容所有無中文語音包之看板） */
+    function playCloudAudioChunk(chunkText) {
+      statusMsg.textContent = isLooping ? "🔁 雲端循環朗讀中..." : "☁️ 雲端朗讀中...";
+      var cleanText = chunkText.replace(/[#]/g, '').trim();
+      if (!cleanText) {
+        currentSentenceIndex++;
+        playNextChunk();
+        return;
+      }
+
+      var encoded = encodeURIComponent(cleanText);
+      var ttsUrl = "https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-TW&client=tw-ob&q=" + encoded;
+      
+      cloudAudio.src = ttsUrl;
+      cloudAudio.playbackRate = currentRate;
+      
+      cloudAudio.onended = function() {
+        if (isManualStop || isPausedState) return;
+        currentSentenceIndex++;
+        if (isLooping && loopEndIndex === null) {
+          loopEndIndex = findNextHashIndex(loopStartIndex);
+        }
+        playNextChunk();
+      };
+
+      cloudAudio.onerror = function() {
+        console.warn("雲端音訊載入異常，跳下一句");
+        if (!isManualStop) {
+          currentSentenceIndex++;
+          playNextChunk();
+        }
+      };
+
+      var playPromise = cloudAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(function(e) {
+          console.warn("音訊播放被攔截，重試中:", e);
+        });
+      }
+    }
+
     function playNextChunk() {
-      if (isManualStop || isPausedState || !synth) return;
+      if (isManualStop || isPausedState) return;
 
       if (currentSentenceIndex >= sentenceQueue.length) {
         resetUI();
@@ -1012,6 +1067,7 @@
 
       var chunkText = sentenceQueue[currentSentenceIndex];
 
+      // 遇 # 標籤邏輯
       if (chunkText.trim() === '#') {
         if (isLooping) {
           loopStartIndex = Math.max(0, loopStartIndex);
@@ -1026,15 +1082,31 @@
         return;
       }
 
+      // 如果判定使用雲端發音
+      if (forceCloudTts || !synth || !hasChineseVoice) {
+        playCloudAudioChunk(chunkText);
+        return;
+      }
+
+      // 使用本地 Web Speech API
       var utterThis = new SpeechSynthesisUtterance(chunkText);
+      utterThis.lang = 'zh-TW';
       if (bestVoice) {
         utterThis.voice = bestVoice;
-        utterThis.lang = bestVoice.lang;
       }
       utterThis.rate = currentRate;
       utterThis.pitch = 1.0;
 
+      var hasStartedSpeaking = false;
+
+      utterThis.onstart = function() {
+        hasStartedSpeaking = true;
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "🔊 播放中";
+        if (watchdogTimer) clearTimeout(watchdogTimer);
+      };
+
       utterThis.onend = function() {
+        if (watchdogTimer) clearTimeout(watchdogTimer);
         if (isManualStop || isPausedState) return;
         currentSentenceIndex++;
         if (isLooping && loopEndIndex === null) {
@@ -1044,20 +1116,35 @@
       };
 
       utterThis.onerror = function(e) {
-        if (e.error !== 'interrupted' && e.error !== 'canceled') {
-          if (!isManualStop) {
-            currentSentenceIndex++;
-            playNextChunk();
-          }
-        }
+        if (watchdogTimer) clearTimeout(watchdogTimer);
+        console.warn("本地語音發生錯誤，自動切換為雲端備援:", e);
+        forceCloudTts = true;
+        playCloudAudioChunk(chunkText);
       };
 
-      synth.speak(utterThis);
+      // 設置看門狗：若廣告機 900ms 內沒出聲，自動降級切換至雲端語音
+      if (watchdogTimer) clearTimeout(watchdogTimer);
+      watchdogTimer = setTimeout(function() {
+        if (!hasStartedSpeaking && !isManualStop && !isPausedState) {
+          console.warn("本地語音逾時未響應，啟用雲端備援發音");
+          forceCloudTts = true;
+          try { synth.cancel(); } catch(err){}
+          playCloudAudioChunk(chunkText);
+        }
+      }, 900);
+
+      try {
+        if (synth.paused) synth.resume();
+        synth.speak(utterThis);
+      } catch(err) {
+        forceCloudTts = true;
+        playCloudAudioChunk(chunkText);
+      }
     }
 
     function startSpeakingNow() {
       unlockAudioContext();
-      if (synth) synth.cancel();
+      stopAllAudio();
 
       var fullText = textInput.value;
       if (fullText.trim() === '') {
@@ -1079,17 +1166,28 @@
       loopStartIndex = 0;
       loopEndIndex = findNextHashIndex(loopStartIndex);
 
-      playNextChunk();
+      // 給予 50ms 讓廣告機底層音訊解鎖就緒
+      setTimeout(function() {
+        playNextChunk();
+      }, 50);
     }
 
     playBtn.addEventListener('click', function(e) {
       if(e) e.preventDefault();
-      startSpeakingNow();
+      if (isPausedState) {
+        resumeSpeak();
+      } else {
+        startSpeakingNow();
+      }
     });
 
     function pauseSpeak() {
       isPausedState = true;
-      if (synth) synth.cancel();
+      if (synth) {
+        try { synth.pause(); } catch(e){}
+      }
+      try { cloudAudio.pause(); } catch(e){}
+      if (watchdogTimer) clearTimeout(watchdogTimer);
       updateUIState('paused');
     }
 
@@ -1098,7 +1196,17 @@
       isPausedState = false;
       isManualStop = false;
       updateUIState('playing');
-      playNextChunk();
+      
+      if (forceCloudTts || !synth || !hasChineseVoice) {
+        cloudAudio.play().catch(function(){
+          playNextChunk();
+        });
+      } else {
+        try {
+          synth.resume();
+        } catch(e){}
+        playNextChunk();
+      }
     }
 
     pauseBtn.addEventListener('click', function() {
@@ -1110,7 +1218,7 @@
       if(e) e.preventDefault();
       isManualStop = true;
       sentenceQueue = [];
-      if (synth) synth.cancel();
+      stopAllAudio();
       resetUI();
     });
 
@@ -1120,13 +1228,13 @@
         pauseBtn.style.display = 'flex';
         pauseBtn.textContent = "⏸ 暫停";
         stopBtn.style.display = 'flex';
-        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "播放中";
+        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "🔊 播放中";
       } else if (state === 'paused') {
         playBtn.style.display = 'none';
         pauseBtn.style.display = 'flex';
         pauseBtn.textContent = "▶ 繼續";
         stopBtn.style.display = 'flex';
-        statusMsg.textContent = "暫停";
+        statusMsg.textContent = "已暫停";
       } else if (state === 'stopped') {
         playBtn.style.display = 'flex';
         pauseBtn.style.display = 'none';
@@ -1142,10 +1250,11 @@
       currentSentenceIndex = 0;
       loopStartIndex = 0;
       loopEndIndex = null;
+      if (watchdogTimer) clearTimeout(watchdogTimer);
       updateUIState('stopped');
     }
 
-    // 啟動初始化（確保 DOM 載入後立即執行）
+    // 初始化啟動
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', initData);
     } else {
