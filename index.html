@@ -367,7 +367,7 @@
     <!-- 2. 前台：內容播放器 -->
     <div id="view-player" class="view-section hidden">
       <div class="player-header">
-        <button class="btn-nav" onclick="showView('home')">← 返回主題列表</button>
+        <button class="btn-nav" onclick="stopAndBackHome()">← 返回主題列表</button>
         <span id="playing-topic-name" class="playing-topic-display">自訂內容</span>
       </div>
 
@@ -582,10 +582,9 @@
     /* ============================================================
      * 2. 資料存儲、Google 試算表串接與 CRUD
      * ============================================================ */
-    const DEFAULT_AUTH_CODE = "1234";
+    const DEFAULT_AUTH_CODE = "1127";
     let gasApiUrl = localStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
     
-    // 預設資料包含獨立背景色
     let cardsData = JSON.parse(localStorage.getItem('tts_cards_data')) || [
       { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！', bgColor: '#fef3c7' },
       { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
@@ -769,6 +768,7 @@
       document.getElementById('modal-auth').classList.add('hidden');
     }
 
+    /* 驗證碼檢查：已移除密碼提示文字 */
     function submitAuth() {
       const code = document.getElementById('auth-code').value;
       if (code === DEFAULT_AUTH_CODE) {
@@ -818,15 +818,25 @@
       });
     }
 
+    /* 點擊卡牌：立即跳轉並零延遲開始朗讀 */
     function selectTopicAndPlay(item) {
       document.getElementById('text-input').value = item.content;
       document.getElementById('playing-topic-name').textContent = `主題：${item.topic}`;
       showView('player');
-      playBtn.click();
+      
+      // 直接同步啟動朗讀，消除 5~8 秒延遲
+      startSpeakingNow();
+    }
+
+    function stopAndBackHome() {
+      synth.cancel();
+      isManualStop = true;
+      resetUI();
+      showView('home');
     }
 
     /* ============================================================
-     * 4. TTS 語音核心模組
+     * 4. TTS 語音核心模組（超快速啟動與即時播放優化）
      * ============================================================ */
     const synth = window.speechSynthesis;
     const textInput = document.getElementById('text-input');
@@ -862,11 +872,6 @@
         if (audioContext.state === 'suspended') {
           audioContext.resume();
         }
-        const buffer = audioContext.createBuffer(1, 1, 22050);
-        const source = audioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioContext.destination);
-        source.start(0);
       } catch (e) {}
     }
 
@@ -902,8 +907,6 @@
     if (speechSynthesis.onvoiceschanged !== undefined) {
       speechSynthesis.onvoiceschanged = autoSelectBestVoice;
     }
-    setTimeout(autoSelectBestVoice, 100);
-    setTimeout(autoSelectBestVoice, 1000);
 
     function updateRateDisplay() {
       rateDisplay.textContent = currentRate.toFixed(1);
@@ -961,7 +964,7 @@
           loopStartIndex = Math.max(0, loopStartIndex);
           currentSentenceIndex = loopStartIndex;
           statusMsg.textContent = "🔁 區段循環中";
-          setTimeout(() => { playNextChunk(); }, 50);
+          playNextChunk();
           return;
         }
         currentSentenceIndex++;
@@ -999,11 +1002,10 @@
       synth.speak(utterThis);
     }
 
-    function speak() {
-      if (isPausedState) {
-        resumeSpeak();
-        return;
-      }
+    /* 極速啟動朗讀核心函式（移除多層 setTimeout 與空白音） */
+    function startSpeakingNow() {
+      unlockAudioContext();
+      synth.cancel();
 
       const fullText = textInput.value;
       if (fullText.trim() === '') {
@@ -1025,24 +1027,20 @@
       loopStartIndex = 0;
       loopEndIndex = findNextHashIndex(loopStartIndex);
 
-      setTimeout(() => {
-        playNextChunk();
-      }, 50);
+      playNextChunk();
+    }
+
+    function speak() {
+      if (isPausedState) {
+        resumeSpeak();
+        return;
+      }
+      startSpeakingNow();
     }
 
     playBtn.addEventListener('click', (e) => {
       if(e) e.preventDefault();
-      isManualStop = true;
-      synth.cancel();
-      unlockAudioContext();
-
-      const unlockUtterance = new SpeechSynthesisUtterance(" ");
-      unlockUtterance.volume = 0;
-      synth.speak(unlockUtterance);
-
-      setTimeout(() => {
-        speak();
-      }, 120);
+      speak();
     });
 
     function pauseSpeak() {
