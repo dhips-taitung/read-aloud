@@ -4,25 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>TTS 語音卡牌學習系統</title>
+  
+  <!-- 引入雲端標楷體 Web Font，確保 Android / iOS 手機皆可顯示標楷體 -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/earlyaccess/cwtexkai.css">
+
   <style>
     :root { 
       --primary: #4f46e5; 
       --primary-hover: #4338ca;
       --text: #333; 
       --border: #ddd; 
-      --bg: #f9f9f9; 
+      --bg: #f8fafc; 
       --loop-active: #10b981; 
       --pause-color: #f59e0b; 
-      --card-bg: #ffffff;
 
-      /* 標楷體跨平台字體宣告 */
-      --font-kai: "DFKai-SB", "BiauKai", "標楷體", "Kaiti SC", "STKaiti", "KaiTi", serif;
+      /* 優先套用雲端 cwTeXKai，再依序退回系統標楷體 */
+      --font-kai: "cwTeXKai", "DFKai-SB", "BiauKai", "標楷體", "Kaiti SC", "STKaiti", "KaiTi", serif;
 
-      /* 卡牌動態樣式變數 (可由後台設定即時覆蓋) */
+      /* 後台動態可調樣式 */
       --card-width: 160px;
       --card-height: 120px;
-      --card-font-size: 17px;
-      --content-font-size: 20px;
+      --card-font-size: 18px;
+      --content-font-size: 21px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -80,18 +83,17 @@
     }
     .hidden { display: none !important; }
 
-    /* 首頁：卡牌格線 (套用自訂寬度與高度) */
+    /* 首頁：卡牌格線 */
     .card-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
       gap: 14px;
-      padding-bottom: 20px;
+      padding-bottom: 24px;
     }
     .topic-card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 14px;
+      padding: 14px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -99,19 +101,21 @@
       text-align: center;
       height: var(--card-height);
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.05);
       transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
     }
-    .topic-card:active { transform: scale(0.97); background: #eef2ff; }
+    .topic-card:active { transform: scale(0.96); filter: brightness(0.95); }
     .topic-card .card-icon { font-size: 24px; margin-bottom: 6px; }
     
-    /* 卡牌主題：指定標楷體與動態字級 */
+    /* 卡牌主題文字（標楷體） */
     .topic-card .card-title { 
       font-family: var(--font-kai); 
       font-size: var(--card-font-size); 
       font-weight: bold; 
       color: var(--text); 
-      line-height: 1.3;
+      line-height: 1.35;
       word-break: break-word;
     }
 
@@ -126,7 +130,7 @@
       flex-shrink: 0; 
       background: #fff; 
       padding: 10px; 
-      border-radius: 8px; 
+      border-radius: 10px; 
       border: 1px solid #eee; 
       display: flex; 
       flex-direction: column; 
@@ -143,17 +147,17 @@
       min-height: 0; 
     }
 
-    /* 朗讀內容：指定標楷體與動態字級 */
+    /* 朗讀內容（標楷體） */
     textarea#text-input {
       width: 100%; 
       height: 100%;           
       flex-grow: 1;
-      padding: 15px; 
+      padding: 16px; 
       font-family: var(--font-kai);
       font-size: var(--content-font-size); 
-      line-height: 1.8;
+      line-height: 1.85;
       border: 1px solid var(--border); 
-      border-radius: 8px; 
+      border-radius: 10px; 
       outline: none; 
       resize: none; 
       color: var(--text);
@@ -225,7 +229,7 @@
     /* 後台管理樣式 */
     .admin-card {
       background: #fff;
-      border-radius: 8px;
+      border-radius: 10px;
       border: 1px solid var(--border);
       padding: 14px;
       margin-bottom: 12px;
@@ -244,6 +248,33 @@
     }
     .form-input:focus { border-color: var(--primary); }
     
+    .color-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .color-input {
+      width: 44px;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .preset-colors {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+
     .btn-action {
       background: var(--primary);
       color: #fff;
@@ -265,6 +296,15 @@
       text-align: left;
     }
     .data-table th { background: #f3f4f6; }
+    .color-dot {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.2);
+      vertical-align: middle;
+      margin-right: 4px;
+    }
     .btn-del {
       background: #ef4444;
       color: #fff;
@@ -295,10 +335,10 @@
     }
     .modal-box {
       background: #fff;
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 20px;
       width: 90%;
-      max-width: 360px;
+      max-width: 380px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -361,26 +401,26 @@
       
       <!-- 樣式自訂面板 -->
       <div class="admin-card">
-        <h3>🎨 卡牌與字體格式設定 (標楷體)</h3>
+        <h3>🎨 卡牌與字體格式設定 (手機全適應標楷體)</h3>
         <div class="form-grid-2">
           <div class="form-group">
-            <label style="font-size: 12px; font-weight: 600;">卡牌最小寬度 (px)</label>
+            <label style="font-size: 12px; font-weight: 600;">卡牌寬度 (px)</label>
             <input type="number" id="setting-card-w" class="form-input" min="80" max="400" value="160">
           </div>
           <div class="form-group">
-            <label style="font-size: 12px; font-weight: 600;">卡牌固定高度 (px)</label>
+            <label style="font-size: 12px; font-weight: 600;">卡牌高度 (px)</label>
             <input type="number" id="setting-card-h" class="form-input" min="60" max="300" value="120">
           </div>
           <div class="form-group">
             <label style="font-size: 12px; font-weight: 600;">卡牌主題字體大小 (px)</label>
-            <input type="number" id="setting-card-font" class="form-input" min="12" max="40" value="17">
+            <input type="number" id="setting-card-font" class="form-input" min="12" max="40" value="18">
           </div>
           <div class="form-group">
             <label style="font-size: 12px; font-weight: 600;">內容朗讀字體大小 (px)</label>
-            <input type="number" id="setting-content-font" class="form-input" min="14" max="50" value="20">
+            <input type="number" id="setting-content-font" class="form-input" min="14" max="50" value="21">
           </div>
         </div>
-        <button class="btn-action" onclick="saveCustomStyles()">💾 儲存並套用樣式</button>
+        <button class="btn-action" onclick="saveCustomStyles()">💾 儲存並套用格式</button>
       </div>
 
       <!-- Google 試算表串接 -->
@@ -397,19 +437,36 @@
 
       <!-- 新增資料 -->
       <div class="admin-card">
-        <h3>➕ 新增資料欄位</h3>
+        <h3>➕ 新增卡牌主題與內容</h3>
         <div class="form-group">
           <label style="font-size: 12px; font-weight: 600;">主題 (Topic)</label>
-          <input type="text" id="new-topic" class="form-input" placeholder="例：日常問候" style="font-family: var(--font-kai);">
+          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀" style="font-family: var(--font-kai);">
         </div>
         <div class="form-group">
           <label style="font-size: 12px; font-weight: 600;">內容 (Content)</label>
           <textarea id="new-content" class="form-input" style="height: 80px; font-family: var(--font-kai);" placeholder="輸入朗讀文字，支援 # 分段"></textarea>
         </div>
-        <button class="btn-action" onclick="addCardData()">新增至試算表與前台</button>
+        
+        <!-- 卡牌背景顏色設定 -->
+        <div class="form-group">
+          <label style="font-size: 12px; font-weight: 600;">卡牌獨立背景顏色</label>
+          <div class="color-picker-row">
+            <input type="color" id="new-bgcolor" class="color-input" value="#ffffff">
+            <div class="preset-colors">
+              <button type="button" class="preset-btn" style="background:#ffffff;" onclick="setNewColor('#ffffff')" title="白"></button>
+              <button type="button" class="preset-btn" style="background:#fef3c7;" onclick="setNewColor('#fef3c7')" title="溫暖黃"></button>
+              <button type="button" class="preset-btn" style="background:#e0e7ff;" onclick="setNewColor('#e0e7ff')" title="淡藍"></button>
+              <button type="button" class="preset-btn" style="background:#dcfce7;" onclick="setNewColor('#dcfce7')" title="淺綠"></button>
+              <button type="button" class="preset-btn" style="background:#fce7f3;" onclick="setNewColor('#fce7f3')" title="粉紅"></button>
+              <button type="button" class="preset-btn" style="background:#f3e8ff;" onclick="setNewColor('#f3e8ff')" title="粉紫"></button>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-action" onclick="addCardData()">新增卡牌</button>
       </div>
 
-      <!-- 資料列表管理（支援修改與刪除） -->
+      <!-- 資料列表管理 -->
       <div class="admin-card">
         <h3>📋 現有資料欄位列表</h3>
         <div style="overflow-x: auto;">
@@ -444,17 +501,35 @@
 
   <!-- 修改資料彈窗 -->
   <div id="modal-edit" class="modal-overlay hidden">
-    <div class="modal-box" style="max-width: 420px;">
+    <div class="modal-box">
       <h3 style="font-size: 16px;">✏️ 編輯卡牌與內容</h3>
       <input type="hidden" id="edit-id">
+      
       <div class="form-group">
         <label style="font-size: 12px; font-weight: 600;">主題 (Topic)</label>
         <input type="text" id="edit-topic" class="form-input" style="font-family: var(--font-kai);">
       </div>
+      
       <div class="form-group">
         <label style="font-size: 12px; font-weight: 600;">內容 (Content)</label>
         <textarea id="edit-content" class="form-input" style="height: 100px; font-family: var(--font-kai);"></textarea>
       </div>
+
+      <div class="form-group">
+        <label style="font-size: 12px; font-weight: 600;">卡牌獨立背景顏色</label>
+        <div class="color-picker-row">
+          <input type="color" id="edit-bgcolor" class="color-input" value="#ffffff">
+          <div class="preset-colors">
+            <button type="button" class="preset-btn" style="background:#ffffff;" onclick="setEditColor('#ffffff')"></button>
+            <button type="button" class="preset-btn" style="background:#fef3c7;" onclick="setEditColor('#fef3c7')"></button>
+            <button type="button" class="preset-btn" style="background:#e0e7ff;" onclick="setEditColor('#e0e7ff')"></button>
+            <button type="button" class="preset-btn" style="background:#dcfce7;" onclick="setEditColor('#dcfce7')"></button>
+            <button type="button" class="preset-btn" style="background:#fce7f3;" onclick="setEditColor('#fce7f3')"></button>
+            <button type="button" class="preset-btn" style="background:#f3e8ff;" onclick="setEditColor('#f3e8ff')"></button>
+          </div>
+        </div>
+      </div>
+
       <div style="display: flex; gap: 8px; justify-content: flex-end;">
         <button class="btn-nav" onclick="closeEditModal()">取消</button>
         <button class="btn-action" onclick="saveEditedData()">儲存修改</button>
@@ -464,13 +539,13 @@
 
   <script>
     /* ============================================================
-     * 1. 樣式動態管理模組（寬度、高度、字級、標楷體）
+     * 1. 樣式與排版管理模組
      * ============================================================ */
     const defaultStyles = {
       cardWidth: 160,
       cardHeight: 120,
-      cardFontSize: 17,
-      contentFontSize: 20
+      cardFontSize: 18,
+      contentFontSize: 21
     };
 
     function loadCustomStyles() {
@@ -501,16 +576,20 @@
       alert('卡牌格式與字體大小設定已儲存並生效！');
     }
 
+    function setNewColor(c) { document.getElementById('new-bgcolor').value = c; }
+    function setEditColor(c) { document.getElementById('edit-bgcolor').value = c; }
+
     /* ============================================================
-     * 2. 資料存儲、Google 試算表串接與 CRUD (增刪改查)
+     * 2. 資料存儲、Google 試算表串接與 CRUD
      * ============================================================ */
-    const DEFAULT_AUTH_CODE = "1127";
+    const DEFAULT_AUTH_CODE = "1234";
     let gasApiUrl = localStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
     
+    // 預設資料包含獨立背景色
     let cardsData = JSON.parse(localStorage.getItem('tts_cards_data')) || [
-      { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！' },
-      { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #' },
-      { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。# 吐氣，一、二、三。#' }
+      { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！', bgColor: '#fef3c7' },
+      { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
+      { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。# 吐氣，一、二、三。#', bgColor: '#dcfce7' }
     ];
 
     function initData() {
@@ -543,7 +622,7 @@
         const res = await fetch(gasApiUrl);
         const data = await res.json();
         if (Array.isArray(data)) {
-          cardsData = data;
+          cardsData = data.map(item => ({ ...item, bgColor: item.bgColor || '#ffffff' }));
           localStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
           renderHomeCards();
           renderAdminTable();
@@ -558,6 +637,7 @@
     async function addCardData() {
       const topicInput = document.getElementById('new-topic');
       const contentInput = document.getElementById('new-content');
+      const bgColor = document.getElementById('new-bgcolor').value || '#ffffff';
       const topic = topicInput.value.trim();
       const content = contentInput.value.trim();
 
@@ -566,7 +646,7 @@
         return;
       }
 
-      const newItem = { id: Date.now().toString(), topic, content };
+      const newItem = { id: Date.now().toString(), topic, content, bgColor };
       cardsData.push(newItem);
       localStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
       renderHomeCards();
@@ -574,6 +654,7 @@
 
       topicInput.value = '';
       contentInput.value = '';
+      document.getElementById('new-bgcolor').value = '#ffffff';
 
       if (gasApiUrl) {
         try {
@@ -588,13 +669,13 @@
       alert('新增成功！');
     }
 
-    /* 開啟編輯視窗 */
     function openEditModal(id) {
       const item = cardsData.find(c => c.id.toString() === id.toString());
       if (!item) return;
       document.getElementById('edit-id').value = item.id;
       document.getElementById('edit-topic').value = item.topic;
       document.getElementById('edit-content').value = item.content;
+      document.getElementById('edit-bgcolor').value = item.bgColor || '#ffffff';
       document.getElementById('modal-edit').classList.remove('hidden');
     }
 
@@ -602,11 +683,11 @@
       document.getElementById('modal-edit').classList.add('hidden');
     }
 
-    /* 儲存編輯資料 */
     async function saveEditedData() {
       const id = document.getElementById('edit-id').value;
       const topic = document.getElementById('edit-topic').value.trim();
       const content = document.getElementById('edit-content').value.trim();
+      const bgColor = document.getElementById('edit-bgcolor').value || '#ffffff';
 
       if (!topic || !content) {
         alert('主題與內容不可為空！');
@@ -617,6 +698,7 @@
       if (index !== -1) {
         cardsData[index].topic = topic;
         cardsData[index].content = content;
+        cardsData[index].bgColor = bgColor;
         localStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
         renderHomeCards();
         renderAdminTable();
@@ -628,7 +710,7 @@
         try {
           await fetch(gasApiUrl, {
             method: 'POST',
-            body: JSON.stringify({ action: 'update', id, topic, content })
+            body: JSON.stringify({ action: 'update', id, topic, content, bgColor })
           });
         } catch (e) {
           console.error('更新 Google 試算表失敗:', e);
@@ -704,6 +786,7 @@
       cardsData.forEach(item => {
         const card = document.createElement('div');
         card.className = 'topic-card';
+        card.style.backgroundColor = item.bgColor || '#ffffff';
         card.innerHTML = `
           <div class="card-icon">📑</div>
           <div class="card-title">${item.topic}</div>
@@ -719,8 +802,12 @@
 
       cardsData.forEach(item => {
         const tr = document.createElement('tr');
+        const color = item.bgColor || '#ffffff';
         tr.innerHTML = `
-          <td style="font-weight: 600; font-family: var(--font-kai);">${item.topic}</td>
+          <td style="font-weight: 600; font-family: var(--font-kai);">
+            <span class="color-dot" style="background-color: ${color};"></span>
+            ${item.topic}
+          </td>
           <td style="color: #444; font-size: 13px; white-space: pre-wrap; font-family: var(--font-kai);">${item.content}</td>
           <td style="text-align: center;">
             <button class="btn-edit" onclick="openEditModal('${item.id}')">編輯</button>
@@ -739,7 +826,7 @@
     }
 
     /* ============================================================
-     * 4. TTS 語音核心模組（分段、#暫停與區段循環播放）
+     * 4. TTS 語音核心模組
      * ============================================================ */
     const synth = window.speechSynthesis;
     const textInput = document.getElementById('text-input');
