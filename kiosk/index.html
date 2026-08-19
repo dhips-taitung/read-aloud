@@ -4,32 +4,35 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
-  <!-- 核心：解除 Google 雲端語音 403 防盜鏈阻擋 -->
+  <!-- 核心：解除 Google 雲端語音 403 阻擋 -->
   <meta name="referrer" content="no-referrer">
 
   <title>TTS 語音卡牌學習系統</title>
   
-  <!-- 引入雲端標楷體 Web Font -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/earlyaccess/cwtexkai.css">
+  <!-- 引入全平台相容的繁體中文正黑體 (思源黑體 / Noto Sans TC) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
 
   <style>
     :root { 
       --primary: #4f46e5; 
       --primary-hover: #4338ca;
-      --text: #333; 
-      --border: #ddd; 
+      --text: #1e293b; 
+      --border: #cbd5e1; 
       --bg: #f8fafc; 
       --loop-active: #10b981; 
       --pause-color: #f59e0b; 
 
-      /* 標楷體字體庫 */
-      --font-kai: "cwTeXKai", "DFKai-SB", "BiauKai", "標楷體", "Kaiti SC", "STKaiti", "KaiTi", serif;
+      /* 繁體中文全平台標準正黑體宣告 */
+      --font-hei: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "微軟正黑體", "PingFang TC", "Helvetica Neue", Arial, sans-serif;
 
       /* 後台動態可調樣式變數 */
       --card-width: 160px;
       --card-height: 120px;
       --card-font-size: 18px;
       --content-font-size: 21px;
+      --font-weight: 700; /* 預設粗體 */
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -39,9 +42,10 @@
       min-height: 100%;
       width: 100%; 
       overflow: hidden; 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: var(--font-hei);
       background: var(--bg); 
       color: var(--text);
+      -webkit-font-smoothing: antialiased;
     }
 
     body {
@@ -62,7 +66,7 @@
       flex-shrink: 0;
       z-index: 20;
     }
-    .navbar .title { font-weight: bold; font-size: 18px; color: var(--primary); }
+    .navbar .title { font-weight: bold; font-size: 18px; color: var(--primary); font-family: var(--font-hei); }
     .navbar .nav-actions { display: flex; gap: 8px; }
     .btn-nav {
       padding: 8px 14px;
@@ -73,6 +77,7 @@
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
+      font-family: var(--font-hei);
       -webkit-tap-highlight-color: transparent;
     }
 
@@ -104,7 +109,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
       gap: 16px;
-      padding-bottom: 90px; /* 預留浮動按鈕空間 */
+      padding-bottom: 90px;
     }
     .topic-card {
       border: 1px solid rgba(0,0,0,0.1);
@@ -126,34 +131,29 @@
     .topic-card:active { transform: scale(0.96); filter: brightness(0.95); }
     .topic-card .card-icon { font-size: 26px; margin-bottom: 6px; }
     
-    /* 卡牌主題文字（標楷體） */
+    /* 卡牌主題文字（正黑體 + 支援粗體設定） */
     .topic-card .card-title { 
-      font-family: var(--font-kai); 
+      font-family: var(--font-hei) !important; 
       font-size: var(--card-font-size); 
-      font-weight: bold; 
+      font-weight: var(--font-weight); 
       color: var(--text); 
       line-height: 1.35;
       word-break: break-word;
     }
 
-    /* 播放器介面 */
+    /* 播放器介面：純文字框架全螢幕設計 */
     .player-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
     }
-    .controls { 
-      flex-shrink: 0; 
-      background: #fff; 
-      padding: 12px; 
-      border-radius: 10px; 
-      border: 1px solid #eee; 
-      display: flex; 
-      flex-direction: column; 
-      gap: 10px; 
-      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-      margin-bottom: 10px;
+    .playing-topic-display {
+      font-family: var(--font-hei) !important;
+      font-size: calc(var(--card-font-size) + 1px);
+      font-weight: var(--font-weight);
+      color: var(--primary);
     }
 
     .content-wrapper {
@@ -162,87 +162,29 @@
       flex-direction: column;
       min-height: 0; 
       height: 100%;
-      padding-bottom: 80px; /* 預留浮動按鈕空間 */
+      padding-bottom: 85px;
     }
 
-    /* 朗讀內容文字框（標楷體） */
+    /* 朗讀內容文字框（正黑體 + 支援粗體設定） */
     textarea#text-input {
       width: 100%; 
       height: 100%;           
       flex: 1 1 auto;
-      padding: 16px; 
-      font-family: var(--font-kai);
+      padding: 18px; 
+      font-family: var(--font-hei) !important;
       font-size: var(--content-font-size); 
-      line-height: 1.85;
-      border: 1px solid var(--border); 
-      border-radius: 10px; 
+      font-weight: var(--font-weight);
+      line-height: 1.9;
+      border: 2px solid var(--border); 
+      border-radius: 12px; 
       outline: none; 
       resize: none; 
       color: var(--text);
       overflow-y: auto;       
-      background: #fff;
+      background: #ffffff;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
     }
     textarea#text-input:focus { border-color: var(--primary); }
-
-    .playing-topic-display {
-      font-family: var(--font-kai);
-      font-size: calc(var(--card-font-size) - 1px);
-      font-weight: bold;
-      color: var(--primary);
-    }
-
-    .row { display: flex; flex-direction: column; gap: 4px; }
-    .speed-control-group {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px;
-    }
-    .btn-speed {
-      width: 48px;
-      height: 40px;
-      background: #eef2ff;
-      color: var(--primary);
-      border: none;
-      border-radius: 4px;
-      font-size: 20px;
-      font-weight: bold;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .speed-display {
-      font-size: 17px;
-      font-weight: bold;
-      color: var(--text);
-      min-width: 60px;
-      text-align: center;
-    }
-
-    .btn-group { display: flex; gap: 8px; margin-top: 4px; }
-    .btn { 
-      border: none; 
-      border-radius: 8px; 
-      font-size: 16px; 
-      font-weight: 600; 
-      color: white; 
-      cursor: pointer; 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      transition: opacity 0.2s;
-    }
-    .btn-main { flex: 2; padding: 14px; } 
-    .btn-play { background-color: var(--primary); }
-    .btn-stop { background-color: #ef4444; display: none; }
-    .btn-pause { background-color: var(--pause-color); display: none; }
-    .btn-loop { flex: 1; background-color: #9ca3af; font-size: 20px; }
-    .btn-loop.active { background-color: var(--loop-active); }
-    .status { text-align: center; font-size: 13px; color: #4f46e5; font-weight: 600; min-height: 18px; }
 
     /* 後台管理樣式 */
     .admin-card {
@@ -252,7 +194,7 @@
       padding: 16px;
       margin-bottom: 14px;
     }
-    .admin-card h3 { font-size: 16px; margin-bottom: 12px; color: var(--primary); }
+    .admin-card h3 { font-size: 16px; margin-bottom: 12px; color: var(--primary); font-family: var(--font-hei); font-weight: 700; }
     .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
     .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     
@@ -263,6 +205,7 @@
       border-radius: 6px;
       font-size: 15px;
       outline: none;
+      font-family: var(--font-hei);
     }
     .form-input:focus { border-color: var(--primary); }
     
@@ -302,6 +245,7 @@
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
+      font-family: var(--font-hei);
     }
     .data-table {
       width: 100%;
@@ -314,7 +258,7 @@
       padding: 10px;
       text-align: left;
     }
-    .data-table th { background: #f3f4f6; }
+    .data-table th { background: #f3f4f6; font-family: var(--font-hei); font-weight: 700; }
     .color-dot {
       display: inline-block;
       width: 16px;
@@ -332,6 +276,7 @@
       border-radius: 4px;
       cursor: pointer;
       font-size: 13px;
+      font-family: var(--font-hei);
     }
     .btn-edit {
       background: #3b82f6;
@@ -342,6 +287,7 @@
       cursor: pointer;
       margin-right: 6px;
       font-size: 13px;
+      font-family: var(--font-hei);
     }
 
     /* 彈窗 Modal */
@@ -363,40 +309,68 @@
       display: flex;
       flex-direction: column;
       gap: 14px;
+      font-family: var(--font-hei);
     }
 
     /* ============================================================
-     * 浮動操作按鈕樣式 (Floating Action Buttons)
+     * 浮動操作按鈕樣式
      * ============================================================ */
     .fab-dock {
       position: fixed;
+      display: flex;
+      gap: 10px;
+      z-index: 50;
+      transition: all 0.3s ease;
+    }
+    
+    .fab-pos-right {
       right: 18px;
       bottom: 24px;
-      display: flex;
       flex-direction: column;
-      gap: 12px;
-      z-index: 50;
     }
+    .fab-pos-bottom {
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      flex-direction: row;
+    }
+    .fab-pos-left {
+      left: 18px;
+      bottom: 24px;
+      flex-direction: column;
+    }
+
     .fab-btn {
       width: 52px;
       height: 52px;
       border-radius: 50%;
       border: none;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-size: 22px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+      font-size: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
       cursor: pointer;
       transition: transform 0.15s, background 0.15s;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
+      color: #fff;
     }
-    .fab-btn:active { transform: scale(0.92); }
-    .fab-home { background: #ffffff; color: var(--primary); border: 2px solid #e0e7ff; }
-    .fab-play { background: var(--primary); color: #ffffff; }
-    .fab-pause { background: var(--pause-color); color: #ffffff; }
-    .fab-stop { background: #ef4444; color: #ffffff; }
+    .fab-btn span.fab-label {
+      font-size: 10px;
+      font-weight: bold;
+      margin-top: 1px;
+      font-family: var(--font-hei);
+    }
+    .fab-btn:active { transform: scale(0.90); }
+
+    .fab-home { background: #475569; }
+    .fab-play { background: var(--primary); }
+    .fab-resume { background: #0284c7; }
+    .fab-loop { background: #64748b; }
+    .fab-loop.active { background: var(--loop-active); box-shadow: 0 0 10px rgba(16,185,129,0.7); }
+    .fab-stop { background: #ef4444; }
   </style>
 </head>
 
@@ -418,31 +392,11 @@
       <div id="card-list" class="card-grid"></div>
     </div>
 
-    <!-- 2. 前台：內容播放器 -->
+    <!-- 2. 前台：自訂播放器 (純文字框架設計) -->
     <div id="view-player" class="view-section hidden">
       <div class="player-header">
         <button class="btn-nav" onclick="stopAndBackHome()">← 返回主題列表</button>
-        <span id="playing-topic-name" class="playing-topic-display">自訂內容</span>
-      </div>
-
-      <div class="controls">
-        <div class="row">
-          <div style="font-size:13px; font-weight:600; color:#555;">語速 (Speed)</div>
-          <div class="speed-control-group">
-            <button type="button" id="btn-slow" class="btn-speed">－</button>
-            <span id="rate-display" class="speed-display">1.0</span>
-            <button type="button" id="btn-fast" class="btn-speed">＋</button>
-          </div>
-        </div>
-
-        <div class="btn-group">
-          <button type="button" id="play-btn" class="btn btn-main btn-play">▶ 播放</button>
-          <button type="button" id="pause-btn" class="btn btn-main btn-pause">⏸ 暫停</button>
-          <button type="button" id="stop-btn" class="btn btn-main btn-stop">⏹ 停止</button>
-          <button type="button" id="loop-btn" class="btn btn-loop" title="重複播放">🔁</button>
-        </div>
-
-        <div class="status" id="status-msg"></div>
+        <span id="playing-topic-name" class="playing-topic-display"></span>
       </div>
 
       <div class="content-wrapper">
@@ -455,13 +409,13 @@
       
       <!-- 後台頂部標題與登出按鈕 -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h2 style="font-size: 18px; color: var(--primary);">⚙️ 後台資料與格式管理</h2>
+        <h2 style="font-size: 18px; color: var(--primary); font-family: var(--font-hei); font-weight: 700;">⚙️ 後台資料與格式管理</h2>
         <button class="btn-del" onclick="logoutAdmin()" style="padding: 7px 14px; font-weight: bold;">🚪 登出後台</button>
       </div>
 
-      <!-- 樣式自訂面板 -->
+      <!-- 樣式與排版自訂面板 (含粗體、語速與浮動鈕位置) -->
       <div class="admin-card">
-        <h3>🎨 卡牌與字體格式設定</h3>
+        <h3>🎨 系統格式、粗體、語速與按鈕設定</h3>
         <div class="form-grid-2">
           <div class="form-group">
             <label style="font-size: 13px; font-weight: 600;">卡牌寬度 (px)</label>
@@ -479,8 +433,35 @@
             <label style="font-size: 13px; font-weight: 600;">內容朗讀字體大小 (px)</label>
             <input type="number" id="setting-content-font" class="form-input" min="14" max="60" value="21">
           </div>
+
+          <!-- 新增：字體粗細 (粗體) 設定 -->
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">文字粗細設定 (Font Weight)</label>
+            <select id="setting-font-weight" class="form-input">
+              <option value="400">一般 (Normal - 400)</option>
+              <option value="500">中等 (Medium - 500)</option>
+              <option value="700" selected>粗體 (Bold - 700)</option>
+              <option value="900">特粗體 (Black - 900)</option>
+            </select>
+          </div>
+          
+          <!-- 預設語速設定 -->
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">預設朗讀語速 (Speed: 0.5 ~ 2.0)</label>
+            <input type="number" id="setting-speed" class="form-input" min="0.5" max="2.0" step="0.1" value="1.0">
+          </div>
+
+          <!-- 浮動按鈕位置設定 -->
+          <div class="form-group" style="grid-column: span 2;">
+            <label style="font-size: 13px; font-weight: 600;">浮動操作鈕位置</label>
+            <select id="setting-fab-pos" class="form-input">
+              <option value="right">右側垂直 (預設)</option>
+              <option value="bottom">底部水平居中</option>
+              <option value="left">左側垂直</option>
+            </select>
+          </div>
         </div>
-        <button class="btn-action" onclick="saveCustomStyles()">💾 儲存並套用格式</button>
+        <button class="btn-action" onclick="saveCustomStyles()">💾 儲存並套用設定</button>
       </div>
 
       <!-- Google 試算表串接 -->
@@ -500,11 +481,11 @@
         <h3>➕ 新增卡牌主題與內容</h3>
         <div class="form-group">
           <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
-          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀" style="font-family: var(--font-kai);">
+          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀">
         </div>
         <div class="form-group">
           <label style="font-size: 13px; font-weight: 600;">內容 (Content)</label>
-          <textarea id="new-content" class="form-input" style="height: 80px; font-family: var(--font-kai);" placeholder="輸入朗讀文字，支援 # 分段"></textarea>
+          <textarea id="new-content" class="form-input" style="height: 80px;" placeholder="輸入朗讀文字，支援 # 分段"></textarea>
         </div>
         
         <!-- 卡牌背景顏色設定 -->
@@ -546,11 +527,23 @@
 
   </div>
 
-  <!-- 浮動操作鈕 (FAB: 首頁、播放/暫停、停止) -->
-  <div class="fab-dock">
-    <button class="fab-btn fab-home" onclick="stopAndBackHome()" title="返回首頁">🏠</button>
-    <button id="fab-play-btn" class="fab-btn fab-play" onclick="handleFabPlay()" title="播放/暫停">▶</button>
-    <button class="fab-btn fab-stop" onclick="stopAudio()" title="停止播放">⏹</button>
+  <!-- 全新 5 合 1 浮動操作鈕 (首頁、播放、繼續、重複、停止) -->
+  <div id="fab-dock-container" class="fab-dock fab-pos-right">
+    <button class="fab-btn fab-home" onclick="stopAndBackHome()" title="返回首頁">
+      🏠<span class="fab-label">首頁</span>
+    </button>
+    <button class="fab-btn fab-play" onclick="handleFabPlay()" title="從頭播放">
+      ▶<span class="fab-label">播放</span>
+    </button>
+    <button class="fab-btn fab-resume" onclick="handleFabResume()" title="繼續播放(跳過#)">
+      ⏯<span class="fab-label">繼續</span>
+    </button>
+    <button id="fab-loop-btn" class="fab-btn fab-loop" onclick="toggleFabLoop()" title="重複播放/循環">
+      🔁<span class="fab-label">重複</span>
+    </button>
+    <button class="fab-btn fab-stop" onclick="stopAudio()" title="停止播放">
+      ⏹<span class="fab-label">停止</span>
+    </button>
   </div>
 
   <!-- 後台驗證碼彈窗 -->
@@ -558,7 +551,6 @@
     <div class="modal-box">
       <h3 style="font-size: 17px;">🔐 後台驗證</h3>
       <p style="font-size: 14px; color: #666;">請輸入管理員密碼 (按 Enter 直接登入)：</p>
-      <!-- 支援 Enter 鍵直接登入 -->
       <input type="password" id="auth-code" class="form-input" placeholder="請輸入驗證碼" onkeydown="if(event.key === 'Enter') submitAuth();">
       <div style="display: flex; gap: 8px; justify-content: flex-end;">
         <button class="btn-nav" onclick="closeAuthModal()">取消</button>
@@ -575,12 +567,12 @@
       
       <div class="form-group">
         <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
-        <input type="text" id="edit-topic" class="form-input" style="font-family: var(--font-kai);">
+        <input type="text" id="edit-topic" class="form-input">
       </div>
       
       <div class="form-group">
         <label style="font-size: 13px; font-weight: 600;">內容 (Content)</label>
-        <textarea id="edit-content" class="form-input" style="height: 100px; font-family: var(--font-kai);"></textarea>
+        <textarea id="edit-content" class="form-input" style="height: 100px;"></textarea>
       </div>
 
       <div class="form-group">
@@ -607,42 +599,36 @@
 
   <script>
     /* ============================================================
-     * 安全儲存封裝（防廣告機 LocalStorage 權限崩潰）
+     * 安全儲存封裝（防廣告機 LocalStorage 崩潰）
      * ============================================================ */
     const SafeStorage = {
       memory: {},
       getItem: function(key) {
-        try {
-          return localStorage.getItem(key);
-        } catch (e) {
-          return this.memory[key] || null;
-        }
+        try { return localStorage.getItem(key); } catch (e) { return this.memory[key] || null; }
       },
       setItem: function(key, val) {
-        try {
-          localStorage.setItem(key, val);
-        } catch (e) {
-          this.memory[key] = val;
-        }
+        try { localStorage.setItem(key, val); } catch (e) { this.memory[key] = val; }
       },
       removeItem: function(key) {
-        try {
-          localStorage.removeItem(key);
-        } catch (e) {
-          delete this.memory[key];
-        }
+        try { localStorage.removeItem(key); } catch (e) { delete this.memory[key]; }
       }
     };
 
     /* ============================================================
-     * 1. 樣式與排版管理
+     * 1. 樣式、字體粗細、語速與浮動鈕位置管理
      * ============================================================ */
     const defaultStyles = {
       cardWidth: 160,
       cardHeight: 120,
       cardFontSize: 18,
-      contentFontSize: 21
+      contentFontSize: 21,
+      fontWeight: '700',
+      speed: 1.0,
+      fabPos: 'right'
     };
+
+    let currentRate = 1.0;
+    const audioPlayer = new Audio();
 
     function loadCustomStyles() {
       var saved = null;
@@ -651,10 +637,17 @@
       } catch(e){}
       saved = saved || defaultStyles;
 
-      document.getElementById('setting-card-w').value = saved.cardWidth;
-      document.getElementById('setting-card-h').value = saved.cardHeight;
-      document.getElementById('setting-card-font').value = saved.cardFontSize;
-      document.getElementById('setting-content-font').value = saved.contentFontSize;
+      document.getElementById('setting-card-w').value = saved.cardWidth || 160;
+      document.getElementById('setting-card-h').value = saved.cardHeight || 120;
+      document.getElementById('setting-card-font').value = saved.cardFontSize || 18;
+      document.getElementById('setting-content-font').value = saved.contentFontSize || 21;
+      document.getElementById('setting-font-weight').value = saved.fontWeight || '700';
+      document.getElementById('setting-speed').value = saved.speed || 1.0;
+      document.getElementById('setting-fab-pos').value = saved.fabPos || 'right';
+
+      currentRate = parseFloat(saved.speed) || 1.0;
+      audioPlayer.playbackRate = currentRate;
+
       applyStylesToDOM(saved);
     }
 
@@ -663,6 +656,13 @@
       document.documentElement.style.setProperty('--card-height', s.cardHeight + 'px');
       document.documentElement.style.setProperty('--card-font-size', s.cardFontSize + 'px');
       document.documentElement.style.setProperty('--content-font-size', s.contentFontSize + 'px');
+      document.documentElement.style.setProperty('--font-weight', s.fontWeight || '700');
+
+      // 設定浮動操作鈕位置 (right / bottom / left)
+      var dock = document.getElementById('fab-dock-container');
+      if (dock) {
+        dock.className = 'fab-dock fab-pos-' + (s.fabPos || 'right');
+      }
     }
 
     function saveCustomStyles() {
@@ -670,27 +670,33 @@
         cardWidth: parseInt(document.getElementById('setting-card-w').value) || defaultStyles.cardWidth,
         cardHeight: parseInt(document.getElementById('setting-card-h').value) || defaultStyles.cardHeight,
         cardFontSize: parseInt(document.getElementById('setting-card-font').value) || defaultStyles.cardFontSize,
-        contentFontSize: parseInt(document.getElementById('setting-content-font').value) || defaultStyles.contentFontSize
+        contentFontSize: parseInt(document.getElementById('setting-content-font').value) || defaultStyles.contentFontSize,
+        fontWeight: document.getElementById('setting-font-weight').value || '700',
+        speed: parseFloat(document.getElementById('setting-speed').value) || 1.0,
+        fabPos: document.getElementById('setting-fab-pos').value || 'right'
       };
+
+      currentRate = newStyles.speed;
+      audioPlayer.playbackRate = currentRate;
+
       SafeStorage.setItem('tts_card_styles', JSON.stringify(newStyles));
       applyStylesToDOM(newStyles);
-      alert('卡牌格式與字體大小設定已儲存並生效！');
+      alert('正黑體格式、粗體與語速設定已儲存並立即生效！');
     }
 
     function setNewColor(c) { document.getElementById('new-bgcolor').value = c; }
     function setEditColor(c) { document.getElementById('edit-bgcolor').value = c; }
 
     /* ============================================================
-     * 2. 資料存儲與 CRUD (預設卡牌保護機制)
+     * 2. 資料存儲與 CRUD
      * ============================================================ */
     const DEFAULT_AUTH_CODE = "1127";
     let gasApiUrl = SafeStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
     
-    // 預設卡牌資料
     const defaultDemoData = [
-      { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！', bgColor: '#fef3c7' },
-      { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
-      { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。# 吐氣，一、二、三。#', bgColor: '#dcfce7' }
+      { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。請深呼吸，準備開始新的挑戰！', bgColor: '#fef3c7' },
+      { id: '2', topic: '英語短句', content: 'Practice makes perfect. Never give up on your dreams. ', bgColor: '#e0e7ff' },
+      { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。 吐氣，一、二、三。', bgColor: '#dcfce7' }
     ];
 
     let cardsData = [];
@@ -698,15 +704,12 @@
       cardsData = JSON.parse(SafeStorage.getItem('tts_cards_data'));
     } catch(e) {}
     
-    // 若無資料或被刪光，自動載入預設卡牌
     if (!Array.isArray(cardsData) || cardsData.length === 0) {
       cardsData = JSON.parse(JSON.stringify(defaultDemoData));
     }
 
     function initData() {
       loadCustomStyles();
-      updateRateDisplay(); // 初始化預設語速顯示
-
       var savedGas = SafeStorage.getItem('gas_api_url');
       if (savedGas) {
         document.getElementById('gas-api-url').value = savedGas;
@@ -744,7 +747,6 @@
             };
           });
         } else {
-          // 試算表若為空，載入預設卡牌
           cardsData = JSON.parse(JSON.stringify(defaultDemoData));
         }
         SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
@@ -847,7 +849,6 @@
 
       cardsData = cardsData.filter(function(item) { return item.id.toString() !== id.toString(); });
 
-      // 若刪除全部主題，自動恢復預設卡牌
       if (cardsData.length === 0) {
         cardsData = JSON.parse(JSON.stringify(defaultDemoData));
         alert('已刪除所有自建主題，系統已為您自動載入預設卡牌！');
@@ -870,7 +871,7 @@
     }
 
     /* ============================================================
-     * 3. 畫面切換與後台權限 (保持登入與登出機制)
+     * 3. 畫面切換與後台權限
      * ============================================================ */
     function showView(viewName) {
       document.getElementById('view-home').classList.add('hidden');
@@ -889,7 +890,6 @@
       }
     }
 
-    // 若已登入過未按登出，直接進入後台
     function openAdminAuth() {
       var isLogged = SafeStorage.getItem('is_admin_logged_in');
       if (isLogged === 'true') {
@@ -910,7 +910,7 @@
     function submitAuth() {
       var code = document.getElementById('auth-code').value;
       if (code === DEFAULT_AUTH_CODE) {
-        SafeStorage.setItem('is_admin_logged_in', 'true'); // 儲存登入狀態
+        SafeStorage.setItem('is_admin_logged_in', 'true');
         closeAuthModal();
         showView('admin');
       } else {
@@ -918,7 +918,6 @@
       }
     }
 
-    // 後台登出功能
     function logoutAdmin() {
       SafeStorage.removeItem('is_admin_logged_in');
       alert('已成功登出後台！');
@@ -949,11 +948,11 @@
         var tr = document.createElement('tr');
         var color = item.bgColor || '#ffffff';
         tr.innerHTML = 
-          '<td style="font-weight: 600; font-family: var(--font-kai);">' +
+          '<td style="font-weight: 600;">' +
             '<span class="color-dot" style="background-color: ' + color + ';"></span>' +
             item.topic +
           '</td>' +
-          '<td style="color: #444; font-size: 13px; white-space: pre-wrap; font-family: var(--font-kai);">' + item.content + '</td>' +
+          '<td style="color: #444; font-size: 13px; white-space: pre-wrap;">' + item.content + '</td>' +
           '<td style="text-align: center;">' +
             '<button class="btn-edit" onclick="openEditModal(\'' + item.id + '\')">編輯</button>' +
             '<button class="btn-del" onclick="deleteCardData(\'' + item.id + '\')">刪除</button>' +
@@ -975,35 +974,17 @@
     }
 
     /* ============================================================
-     * 4. 雲端高音質語音串流引擎 (HTML5 Audio 引擎)
+     * 4. 雲端高音質語音串流引擎 (HTML5 Audio)
      * ============================================================ */
-    const audioPlayer = new Audio();
     const textInput = document.getElementById('text-input');
-
-    const btnSlow = document.getElementById('btn-slow');
-    const btnFast = document.getElementById('btn-fast');
-    const rateDisplay = document.getElementById('rate-display');
-
-    const playBtn = document.getElementById('play-btn');
-    const pauseBtn = document.getElementById('pause-btn');
-    const stopBtn = document.getElementById('stop-btn');
-    const loopBtn = document.getElementById('loop-btn');
-    const statusMsg = document.getElementById('status-msg');
-    const fabPlayBtn = document.getElementById('fab-play-btn');
+    const fabLoopBtn = document.getElementById('fab-loop-btn');
 
     let isLooping = false;
     let isManualStop = false;
     let isPausedState = false;
 
-    /* ============================================================
-     * 📍【預設語音速度修改位置】：
-     * 可修改下方的 1.0 (例如改為 0.9 或 1.2)
-     * ============================================================ */
-    let currentRate = 1.0; 
-
     let sentenceQueue = [];
     let currentSentenceIndex = 0;
-
     let loopStartIndex = 0;
     let loopEndIndex = null;
 
@@ -1012,35 +993,6 @@
       const lang = isEnglishOnly ? 'en-US' : 'zh-TW';
       return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + lang + '&q=' + encodeURIComponent(text);
     }
-
-    function updateRateDisplay() {
-      if (rateDisplay) rateDisplay.textContent = currentRate.toFixed(1);
-      audioPlayer.playbackRate = currentRate;
-    }
-
-    btnSlow.addEventListener('click', function() {
-      if (currentRate > 0.5) {
-        currentRate -= 0.1;
-        currentRate = parseFloat(currentRate.toFixed(1));
-        updateRateDisplay();
-      }
-    });
-
-    btnFast.addEventListener('click', function() {
-      if (currentRate < 2.0) {
-        currentRate += 0.1;
-        currentRate = parseFloat(currentRate.toFixed(1));
-        updateRateDisplay();
-      }
-    });
-
-    loopBtn.addEventListener('click', function() {
-      isLooping = !isLooping;
-      loopBtn.classList.toggle('active', isLooping);
-      if (!isPausedState && (pauseBtn.style.display === 'flex')) {
-        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
-      }
-    });
 
     function splitTextIntoChunks(text) {
       var regex = /[^#，,。？！.?!;\n\r]+[，,。？！.?!;\n\r]*|#/g;
@@ -1059,7 +1011,9 @@
       if (isManualStop || isPausedState) return;
 
       if (currentSentenceIndex >= sentenceQueue.length) {
-        resetUI();
+        isPausedState = false;
+        isManualStop = false;
+        currentSentenceIndex = 0;
         return;
       }
 
@@ -1075,17 +1029,13 @@
         if (isLooping) {
           loopStartIndex = Math.max(0, loopStartIndex);
           currentSentenceIndex = loopStartIndex;
-          statusMsg.textContent = "🔁 區段循環中";
           setTimeout(playNextChunk, 80);
           return;
         }
-        currentSentenceIndex++;
-        pauseSpeak();
-        statusMsg.textContent = "已暫停";
+        isPausedState = true;
+        audioPlayer.pause();
         return;
       }
-
-      statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
 
       audioPlayer.src = getCloudTtsUrl(chunkText);
       audioPlayer.playbackRate = currentRate;
@@ -1093,7 +1043,7 @@
       var playPromise = audioPlayer.play();
       if (playPromise !== undefined) {
         playPromise.catch(function(err) {
-          console.warn("音訊播放受阻:", err);
+          console.warn("播放中斷重試:", err);
           if (!isManualStop && !isPausedState) {
             currentSentenceIndex++;
             playNextChunk();
@@ -1122,7 +1072,6 @@
 
       var fullText = textInput.value;
       if (fullText.trim() === '') {
-        // 若在首頁直接點浮動播放，載入第一張卡牌
         if (cardsData.length > 0) {
           selectTopicAndPlay(cardsData[0]);
           return;
@@ -1136,7 +1085,6 @@
       if (textSegment.trim().length === 0) textSegment = fullText;
       textSegment = textSegment.trim();
 
-      updateUIState('playing');
       sentenceQueue = splitTextIntoChunks(textSegment);
       loopStartIndex = 0;
       loopEndIndex = findNextHashIndex(loopStartIndex);
@@ -1144,106 +1092,53 @@
       playNextChunk();
     }
 
-    // 浮動播放按鈕控制
+    /* ============================================================
+     * 5. 浮動操作鈕功能綁定
+     * ============================================================ */
     function handleFabPlay() {
       if (document.getElementById('view-player').classList.contains('hidden')) {
         showView('player');
       }
-      if (isPausedState) {
-        resumeSpeak();
-      } else if (audioPlayer.paused && sentenceQueue.length > 0 && currentSentenceIndex < sentenceQueue.length) {
-        resumeSpeak();
-      } else if (!audioPlayer.paused) {
-        pauseSpeak();
-      } else {
-        startSpeakingNow();
-      }
+      startSpeakingNow();
     }
 
-    playBtn.addEventListener('click', function(e) {
-      if (e) e.preventDefault();
-      if (isPausedState) {
-        resumeSpeak();
-      } else {
-        startSpeakingNow();
+    function handleFabResume() {
+      if (document.getElementById('view-player').classList.contains('hidden')) {
+        showView('player');
       }
-    });
 
-    function pauseSpeak() {
-      isPausedState = true;
-      audioPlayer.pause();
-      updateUIState('paused');
-    }
+      if (currentSentenceIndex < sentenceQueue.length && (sentenceQueue[currentSentenceIndex] || '').trim() === '#') {
+        currentSentenceIndex++;
+      }
 
-    function resumeSpeak() {
-      if (!isPausedState) return;
       isPausedState = false;
       isManualStop = false;
-      updateUIState('playing');
-      audioPlayer.play().catch(function() {
+
+      if (audioPlayer.paused && audioPlayer.src && audioPlayer.currentTime > 0) {
+        audioPlayer.play().catch(function() {
+          playNextChunk();
+        });
+      } else {
         playNextChunk();
-      });
+      }
     }
 
-    pauseBtn.addEventListener('click', function() {
-      if (isPausedState) resumeSpeak();
-      else pauseSpeak();
-    });
+    function toggleFabLoop() {
+      isLooping = !isLooping;
+      if (fabLoopBtn) {
+        fabLoopBtn.classList.toggle('active', isLooping);
+      }
+    }
 
     function stopAudio() {
       isManualStop = true;
+      isPausedState = false;
       audioPlayer.pause();
       audioPlayer.currentTime = 0;
       sentenceQueue = [];
-      resetUI();
-    }
-
-    stopBtn.addEventListener('click', function(e) {
-      if (e) e.preventDefault();
-      stopAudio();
-    });
-
-    function updateUIState(state) {
-      if (state === 'playing') {
-        playBtn.style.display = 'none';
-        pauseBtn.style.display = 'flex';
-        pauseBtn.textContent = "⏸ 暫停";
-        stopBtn.style.display = 'flex';
-        statusMsg.textContent = isLooping ? "🔁 區段循環中" : "▶ 播放中 (雲端高音質)";
-        if (fabPlayBtn) {
-          fabPlayBtn.textContent = '⏸';
-          fabPlayBtn.className = 'fab-btn fab-pause';
-        }
-      } else if (state === 'paused') {
-        playBtn.style.display = 'none';
-        pauseBtn.style.display = 'flex';
-        pauseBtn.textContent = "▶ 繼續";
-        stopBtn.style.display = 'flex';
-        statusMsg.textContent = "已暫停";
-        if (fabPlayBtn) {
-          fabPlayBtn.textContent = '▶';
-          fabPlayBtn.className = 'fab-btn fab-play';
-        }
-      } else if (state === 'stopped') {
-        playBtn.style.display = 'flex';
-        pauseBtn.style.display = 'none';
-        stopBtn.style.display = 'none';
-        pauseBtn.textContent = "⏸ 暫停";
-        statusMsg.textContent = "";
-        if (fabPlayBtn) {
-          fabPlayBtn.textContent = '▶';
-          fabPlayBtn.className = 'fab-btn fab-play';
-        }
-      }
-    }
-
-    function resetUI() {
-      isPausedState = false;
-      isManualStop = false;
       currentSentenceIndex = 0;
       loopStartIndex = 0;
       loopEndIndex = null;
-      updateUIState('stopped');
     }
 
     // 啟動初始化
