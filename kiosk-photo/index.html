@@ -165,7 +165,7 @@
       padding-bottom: 85px;
     }
 
-    /* 支援嵌入照片與文字排版的富文字顯示框架 */
+    /* 富文字框架容器 */
     div#text-input {
       width: 100%; 
       height: 100%;           
@@ -182,19 +182,18 @@
       overflow-y: auto;       
       background: #ffffff;
       box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
-      white-space: pre-wrap;
       word-break: break-word;
     }
     div#text-input:focus { border-color: var(--primary); }
 
-    /* 嵌入圖片的自適應美化樣式 */
+    /* 嵌入圖片美化樣式 */
     div#text-input img {
       max-width: 100%;
       height: auto;
       border-radius: 10px;
-      margin: 14px auto;
+      margin: 16px auto;
       display: block;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
 
     /* 後台管理樣式 */
@@ -409,8 +408,7 @@
       </div>
 
       <div class="content-wrapper">
-        <!-- 升級為富文字容器：可直接顯示文字與照片 -->
-        <div id="text-input" contenteditable="true" placeholder="可直接輸入文字或插入圖片語法 <img src='網址'>..."></div>
+        <div id="text-input" contenteditable="true" placeholder="輸入文字..."></div>
       </div>
     </div>
 
@@ -491,11 +489,11 @@
         <h3>➕ 新增卡牌主題與內容</h3>
         <div class="form-group">
           <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
-          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀">
+          <input type="text" id="new-topic" class="form-input" placeholder="例：學務處有哪些老師？">
         </div>
         <div class="form-group">
-          <label style="font-size: 13px; font-weight: 600;">內容 (Content，支援插入圖片語法：&lt;img src="圖片網址"&gt;)</label>
-          <textarea id="new-content" class="form-input" style="height: 90px;" placeholder="輸入朗讀文字，支援 # 分段與 <img src='圖片網址'>"></textarea>
+          <label style="font-size: 13px; font-weight: 600;">內容 (Content)</label>
+          <textarea id="new-content" class="form-input" style="height: 90px;" placeholder="輸入文字，可換行，支援貼上圖片語法"></textarea>
         </div>
         
         <!-- 卡牌背景顏色設定 -->
@@ -581,7 +579,7 @@
       </div>
       
       <div class="form-group">
-        <label style="font-size: 13px; font-weight: 600;">內容 (Content，支援 &lt;img src="圖片網址"&gt;)</label>
+        <label style="font-size: 13px; font-weight: 600;">內容 (Content)</label>
         <textarea id="edit-content" class="form-input" style="height: 110px;"></textarea>
       </div>
 
@@ -623,6 +621,40 @@
         try { localStorage.removeItem(key); } catch (e) { delete this.memory[key]; }
       }
     };
+
+    /* ============================================================
+     * 強制智能解析器：完美轉換 HTML / 圖片 / Google Drive 直連
+     * ============================================================ */
+    function formatRichContent(raw) {
+      if (!raw) return '';
+      
+      // 1. 如果包含被跳脫的 &lt;img ... &gt; 先還原成正常 HTML 標籤
+      let text = raw.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+
+      // 2. 自動將純文字換行轉換為 <br>（若還沒有 <br>）
+      if (!text.includes('<br>') && !text.includes('<p>') && !text.includes('<div>')) {
+        text = text.replace(/\r?\n/g, '<br>');
+      }
+
+      // 3. 智能解析並修復 Google Drive 圖片連結 (轉為最高相容度之直連與縮圖串流)
+      text = text.replace(
+        /(https:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|thumbnail\?id=)([a-zA-Z0-9_-]+)[^\s"'>]*)/g,
+        function(match, p1, id) {
+          return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1000';
+        }
+      );
+
+      // 4. 如果使用者直接貼上圖片網址（沒有寫 <img src="...">），自動幫忙補上 <img> 標籤
+      text = text.replace(
+        /(?<!src=["'])(https:\/\/[^\s<>"']+\.(?:jpg|jpeg|png|gif|webp)|https:\/\/drive\.google\.com\/thumbnail\?id=[a-zA-Z0-9_-]+&sz=w1000)/gi,
+        '<img src="$1" crossorigin="anonymous">'
+      );
+
+      // 5. 確保所有 img 標籤都有 crossorigin 屬性防阻擋
+      text = text.replace(/<img\s+src=/gi, '<img crossorigin="anonymous" src=');
+
+      return text;
+    }
 
     /* ============================================================
      * 1. 樣式、字體粗細、語速與浮動鈕位置管理
@@ -697,17 +729,17 @@
     function setEditColor(c) { document.getElementById('edit-bgcolor').value = c; }
 
     /* ============================================================
-     * 2. 資料存儲與 CRUD (第一張預設卡牌加入圖片範例)
+     * 2. 資料存儲與 CRUD
      * ============================================================ */
     const DEFAULT_AUTH_CODE = "1127";
     let gasApiUrl = SafeStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
     
-    // 預設卡牌 (第一張加入範例圖片提供展示)
+    // 預設示範資料
     const defaultDemoData = [
       { 
         id: '1', 
-        topic: '晨間美景', 
-        content: '早安！今天也是充滿希望的一天。<img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80"># 請深呼吸，準備開始新的挑戰！', 
+        topic: '學務處有哪些老師？', 
+        content: '學務主任、訓育組長、生教組長<br>體育組長、環衛組長、護理師<br><img src="https://drive.google.com/thumbnail?id=18jQvtNCaO6XivsDvBnkZp3e84NXVg0Ar&sz=w1000">', 
         bgColor: '#fef3c7' 
       },
       { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
@@ -976,10 +1008,10 @@
       });
     }
 
-    /* 點擊卡牌：將內容渲染為 HTML（支援圖片）並自動朗讀純文字 */
+    /* 點擊卡牌：透過 formatRichContent 強制解析並渲染圖片 */
     function selectTopicAndPlay(item) {
       var inputEl = document.getElementById('text-input');
-      inputEl.innerHTML = item.content; // 支援 HTML / 圖片呈現
+      inputEl.innerHTML = formatRichContent(item.content); 
       document.getElementById('playing-topic-name').textContent = item.topic ? '主題：' + item.topic : '';
       showView('player');
       startSpeakingNow();
@@ -991,7 +1023,7 @@
     }
 
     /* ============================================================
-     * 4. 雲端高音質語音串流引擎 (自動過濾 <img> 圖片，僅讀純文字)
+     * 4. 雲端高音質語音串流引擎 (自動過濾 <img>，只讀純文字)
      * ============================================================ */
     const textInput = document.getElementById('text-input');
     const fabLoopBtn = document.getElementById('fab-loop-btn');
@@ -1012,7 +1044,7 @@
     }
 
     function splitTextIntoChunks(text) {
-      var regex = /[^#，,。？！.?!;\n\r]+[，,。？！.?!;\n\r]*|#/g;
+      var regex = /[^#，,、。？！.?!;\n\r]+[，,、。？！.?!;\n\r]*|#/g;
       var chunks = text.match(regex);
       return chunks || [text];
     }
@@ -1081,16 +1113,15 @@
       playNextChunk();
     };
 
-    /* 啟動朗讀：使用 innerText 自動排除所有 <img> 標籤與圖片代碼 */
     function startSpeakingNow() {
       audioPlayer.pause();
       isManualStop = false;
       isPausedState = false;
       currentSentenceIndex = 0;
 
-      // 提取純文字（照片不發出任何聲音）
+      // 智能提取純文字：過濾所有 HTML 標籤與圖片代碼
       var fullText = textInput.innerText || textInput.textContent || '';
-      fullText = fullText.trim();
+      fullText = fullText.replace(/<[^>]+>/g, '').trim();
 
       if (fullText === '') {
         if (cardsData.length > 0) {
