@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- 核心：解除 Google 雲端語音 403 阻擋 -->
+  <meta name="referrer" content="no-referrer">
+
+  <title>TTS 語音卡牌學習系統</title>
+  
+  <!-- 多重雲端字體支援：確保 Android 看板、iOS、Windows 皆能正常顯示楷體風格 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/earlyaccess/cwtexkai.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@600;900&display=swap">
+
+  <style>
+    :root { 
+      --primary: #4f46e5; 
+      --primary-hover: #4338ca;
+      --text: #333; 
+      --border: #ddd; 
+      --bg: #f8fafc; 
+      --loop-active: #10b981; 
+      --pause-color: #f59e0b; 
+
+      /* 跨平台楷體字體庫宣告 */
+      --font-kai: "cwTeXKai", "DFKai-SB", "BiauKai", "標楷體", "Kaiti SC", "STKaiti", "KaiTi", "Noto Serif TC", serif;
+
+      /* 後台動態可調樣式變數 */
+      --card-width: 160px;
+      --card-height: 120px;
+      --card-font-size: 18px;
+      --content-font-size: 21px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* 相容性佈局 */
+    html, body { 
+      height: 100%; 
+      min-height: 100%;
+      width: 100%; 
+      overflow: hidden; 
+      font-family: var(--font-kai);
+      background: var(--bg); 
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 頂部導覽列 */
+    .navbar {
+      height: 54px;
+      min-height: 54px;
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+    .navbar .title { font-weight: bold; font-size: 18px; color: var(--primary); font-family: var(--font-kai); }
+    .navbar .nav-actions { display: flex; gap: 8px; }
+    .btn-nav {
+      padding: 8px 14px;
+      background: #eef2ff;
+      color: var(--primary);
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-kai);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* 內容容器 */
+    .app-container {
+      flex: 1 1 auto;
+      width: 100%;
+      height: calc(100% - 54px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .view-section {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+    }
+    .hidden { display: none !important; }
+
+    /* 首頁：卡牌格線 */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+      gap: 16px;
+      padding-bottom: 90px;
+    }
+    .topic-card {
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      height: var(--card-height);
+      cursor: pointer;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+      transition: transform 0.15s ease, filter 0.15s ease;
+      position: relative;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .topic-card:active { transform: scale(0.96); filter: brightness(0.95); }
+    .topic-card .card-icon { font-size: 26px; margin-bottom: 6px; }
+    
+    /* 卡牌主題文字（標楷體） */
+    .topic-card .card-title { 
+      font-family: var(--font-kai) !important; 
+      font-size: var(--card-font-size); 
+      font-weight: bold; 
+      color: var(--text); 
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    /* 播放器介面：純文字框架全螢幕設計 */
+    .player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .playing-topic-display {
+      font-family: var(--font-kai) !important;
+      font-size: calc(var(--card-font-size) + 1px);
+      font-weight: bold;
+      color: var(--primary);
+    }
+
+    .content-wrapper {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0; 
+      height: 100%;
+      padding-bottom: 85px; /* 留出浮動按鈕高度 */
+    }
+
+    /* 朗讀內容文字框（標楷體） */
+    textarea#text-input {
+      width: 100%; 
+      height: 100%;           
+      flex: 1 1 auto;
+      padding: 18px; 
+      font-family: var(--font-kai) !important;
+      font-size: var(--content-font-size); 
+      line-height: 1.9;
+      border: 2px solid var(--border); 
+      border-radius: 12px; 
+      outline: none; 
+      resize: none; 
+      color: var(--text);
+      overflow-y: auto;       
+      background: #ffffff;
+      box-shadow: inset 0 2px 6px rgba(0,0,0,0.03);
+    }
+    textarea#text-input:focus { border-color: var(--primary); }
+
+    /* 後台管理樣式 */
+    .admin-card {
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .admin-card h3 { font-size: 16px; margin-bottom: 12px; color: var(--primary); font-family: var(--font-kai); }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 15px;
+      outline: none;
+      font-family: var(--font-kai);
+    }
+    .form-input:focus { border-color: var(--primary); }
+    
+    .color-picker-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .color-input {
+      width: 50px;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .preset-colors {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+
+    .btn-action {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: var(--font-kai);
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    .data-table th, .data-table td {
+      border: 1px solid var(--border);
+      padding: 10px;
+      text-align: left;
+    }
+    .data-table th { background: #f3f4f6; font-family: var(--font-kai); }
+    .color-dot {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.2);
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    .btn-del {
+      background: #ef4444;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: var(--font-kai);
+    }
+    .btn-edit {
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 6px;
+      font-size: 13px;
+      font-family: var(--font-kai);
+    }
+
+    /* 彈窗 Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .modal-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 22px;
+      width: 90%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      font-family: var(--font-kai);
+    }
+
+    /* ============================================================
+     * 浮動操作按鈕樣式 (支援右側垂直 / 底部水平 / 左側垂直)
+     * ============================================================ */
+    .fab-dock {
+      position: fixed;
+      display: flex;
+      gap: 10px;
+      z-index: 50;
+      transition: all 0.3s ease;
+    }
+    
+    /* 位置 1：右側垂直 (預設) */
+    .fab-pos-right {
+      right: 18px;
+      bottom: 24px;
+      flex-direction: column;
+    }
+    /* 位置 2：底部水平居中 */
+    .fab-pos-bottom {
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      flex-direction: row;
+    }
+    /* 位置 3：左側垂直 */
+    .fab-pos-left {
+      left: 18px;
+      bottom: 24px;
+      flex-direction: column;
+    }
+
+    .fab-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+      cursor: pointer;
+      transition: transform 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      color: #fff;
+    }
+    .fab-btn span.fab-label {
+      font-size: 10px;
+      font-weight: bold;
+      margin-top: 1px;
+      font-family: var(--font-kai);
+    }
+    .fab-btn:active { transform: scale(0.90); }
+
+    .fab-home { background: #475569; }
+    .fab-play { background: var(--primary); }
+    .fab-resume { background: #0284c7; }
+    .fab-loop { background: #64748b; }
+    .fab-loop.active { background: var(--loop-active); box-shadow: 0 0 10px rgba(16,185,129,0.7); }
+    .fab-stop { background: #ef4444; }
+  </style>
+</head>
+
+<body>
+  <!-- 頂部導覽列 -->
+  <div class="navbar">
+    <div class="title" id="page-title">🎙️ 語音主題卡牌</div>
+    <div class="nav-actions">
+      <button class="btn-nav" onclick="showView('home')">首頁卡牌</button>
+      <button class="btn-nav" onclick="showView('player')">自訂播放</button>
+      <button class="btn-nav" onclick="openAdminAuth()">後台管理</button>
+    </div>
+  </div>
+
+  <div class="app-container">
+
+    <!-- 1. 首頁：主題卡牌列表 -->
+    <div id="view-home" class="view-section">
+      <div id="card-list" class="card-grid"></div>
+    </div>
+
+    <!-- 2. 前台：自訂播放器 (僅呈現文字框架，隱藏所有多餘按鈕) -->
+    <div id="view-player" class="view-section hidden">
+      <div class="player-header">
+        <button class="btn-nav" onclick="stopAndBackHome()">← 返回主題列表</button>
+        <span id="playing-topic-name" class="playing-topic-display">自訂內容</span>
+      </div>
+
+      <div class="content-wrapper">
+        <textarea id="text-input" placeholder="請輸入文字... (輸入 # 可設定自動暫停點 / 區段循環點)"></textarea>
+      </div>
+    </div>
+
+    <!-- 3. 後台管理 -->
+    <div id="view-admin" class="view-section hidden">
+      
+      <!-- 後台頂部標題與登出按鈕 -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="font-size: 18px; color: var(--primary); font-family: var(--font-kai);">⚙️ 後台資料與格式管理</h2>
+        <button class="btn-del" onclick="logoutAdmin()" style="padding: 7px 14px; font-weight: bold;">🚪 登出後台</button>
+      </div>
+
+      <!-- 樣式與排版自訂面板 (含語速與浮動鈕位置) -->
+      <div class="admin-card">
+        <h3>🎨 系統格式、語速與浮動按鈕設定</h3>
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">卡牌寬度 (px)</label>
+            <input type="number" id="setting-card-w" class="form-input" min="80" max="500" value="160">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">卡牌高度 (px)</label>
+            <input type="number" id="setting-card-h" class="form-input" min="60" max="400" value="120">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">卡牌主題字體大小 (px)</label>
+            <input type="number" id="setting-card-font" class="form-input" min="12" max="50" value="18">
+          </div>
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">內容朗讀字體大小 (px)</label>
+            <input type="number" id="setting-content-font" class="form-input" min="14" max="60" value="21">
+          </div>
+          
+          <!-- 新增：預設語速設定 -->
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">預設朗讀語速 (Speed: 0.5 ~ 2.0)</label>
+            <input type="number" id="setting-speed" class="form-input" min="0.5" max="2.0" step="0.1" value="1.0">
+          </div>
+
+          <!-- 新增：浮動按鈕位置設定 -->
+          <div class="form-group">
+            <label style="font-size: 13px; font-weight: 600;">浮動操作鈕位置</label>
+            <select id="setting-fab-pos" class="form-input">
+              <option value="right">右側垂直 (預設)</option>
+              <option value="bottom">底部水平居中</option>
+              <option value="left">左側垂直</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-action" onclick="saveCustomStyles()">💾 儲存並套用設定</button>
+      </div>
+
+      <!-- Google 試算表串接 -->
+      <div class="admin-card">
+        <h3>🔗 Google 試算表串接 (GAS Web App)</h3>
+        <div class="form-group">
+          <input type="text" id="gas-api-url" class="form-input" placeholder="請貼上 Apps Script 網頁應用程式網址">
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-action" onclick="saveGasUrl()">儲存網址並同步</button>
+          <button class="btn-nav" onclick="fetchSheetData()">🔄 重新整理</button>
+        </div>
+      </div>
+
+      <!-- 新增資料 -->
+      <div class="admin-card">
+        <h3>➕ 新增卡牌主題與內容</h3>
+        <div class="form-group">
+          <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
+          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀">
+        </div>
+        <div class="form-group">
+          <label style="font-size: 13px; font-weight: 600;">內容 (Content)</label>
+          <textarea id="new-content" class="form-input" style="height: 80px;" placeholder="輸入朗讀文字，支援 # 分段"></textarea>
+        </div>
+        
+        <!-- 卡牌背景顏色設定 -->
+        <div class="form-group">
+          <label style="font-size: 13px; font-weight: 600;">卡牌獨立背景顏色</label>
+          <div class="color-picker-row">
+            <input type="color" id="new-bgcolor" class="color-input" value="#ffffff">
+            <div class="preset-colors">
+              <button type="button" class="preset-btn" style="background:#ffffff;" onclick="setNewColor('#ffffff')" title="白"></button>
+              <button type="button" class="preset-btn" style="background:#fef3c7;" onclick="setNewColor('#fef3c7')" title="溫暖黃"></button>
+              <button type="button" class="preset-btn" style="background:#e0e7ff;" onclick="setNewColor('#e0e7ff')" title="淡藍"></button>
+              <button type="button" class="preset-btn" style="background:#dcfce7;" onclick="setNewColor('#dcfce7')" title="淺綠"></button>
+              <button type="button" class="preset-btn" style="background:#fce7f3;" onclick="setNewColor('#fce7f3')" title="粉紅"></button>
+              <button type="button" class="preset-btn" style="background:#f3e8ff;" onclick="setNewColor('#f3e8ff')" title="粉紫"></button>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-action" onclick="addCardData()">新增卡牌</button>
+      </div>
+
+      <!-- 資料列表管理 -->
+      <div class="admin-card">
+        <h3>📋 現有資料欄位列表</h3>
+        <div style="overflow-x: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 25%;">主題</th>
+                <th>內容</th>
+                <th style="width: 120px; text-align: center;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="admin-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 全新 5 合 1 浮動操作鈕 (首頁、播放、繼續、重複、停止) -->
+  <div id="fab-dock-container" class="fab-dock fab-pos-right">
+    <button class="fab-btn fab-home" onclick="stopAndBackHome()" title="返回首頁">
+      🏠<span class="fab-label">首頁</span>
+    </button>
+    <button class="fab-btn fab-play" onclick="handleFabPlay()" title="從頭播放">
+      ▶<span class="fab-label">播放</span>
+    </button>
+    <button class="fab-btn fab-resume" onclick="handleFabResume()" title="繼續播放(跳過#)">
+      ⏯<span class="fab-label">繼續</span>
+    </button>
+    <button id="fab-loop-btn" class="fab-btn fab-loop" onclick="toggleFabLoop()" title="重複播放/循環">
+      🔁<span class="fab-label">重複</span>
+    </button>
+    <button class="fab-btn fab-stop" onclick="stopAudio()" title="停止播放">
+      ⏹<span class="fab-label">停止</span>
+    </button>
+  </div>
+
+  <!-- 後台驗證碼彈窗 -->
+  <div id="modal-auth" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3 style="font-size: 17px;">🔐 後台驗證</h3>
+      <p style="font-size: 14px; color: #666;">請輸入管理員密碼 (按 Enter 直接登入)：</p>
+      <input type="password" id="auth-code" class="form-input" placeholder="請輸入驗證碼" onkeydown="if(event.key === 'Enter') submitAuth();">
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn-nav" onclick="closeAuthModal()">取消</button>
+        <button class="btn-action" onclick="submitAuth()">確認登入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 修改資料彈窗 -->
+  <div id="modal-edit" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3 style="font-size: 17px;">✏️ 編輯卡牌與內容</h3>
+      <input type="hidden" id="edit-id">
+      
+      <div class="form-group">
+        <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
+        <input type="text" id="edit-topic" class="form-input">
+      </div>
+      
+      <div class="form-group">
+        <label style="font-size: 13px; font-weight: 600;">內容 (Content)</label>
+        <textarea id="edit-content" class="form-input" style="height: 100px;"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label style="font-size: 13px; font-weight: 600;">卡牌獨立背景顏色</label>
+        <div class="color-picker-row">
+          <input type="color" id="edit-bgcolor" class="color-input" value="#ffffff">
+          <div class="preset-colors">
+            <button type="button" class="preset-btn" style="background:#ffffff;" onclick="setEditColor('#ffffff')"></button>
+            <button type="button" class="preset-btn" style="background:#fef3c7;" onclick="setEditColor('#fef3c7')"></button>
+            <button type="button" class="preset-btn" style="background:#e0e7ff;" onclick="setEditColor('#e0e7ff')"></button>
+            <button type="button" class="preset-btn" style="background:#dcfce7;" onclick="setEditColor('#dcfce7')"></button>
+            <button type="button" class="preset-btn" style="background:#fce7f3;" onclick="setEditColor('#fce7f3')"></button>
+            <button type="button" class="preset-btn" style="background:#f3e8ff;" onclick="setEditColor('#f3e8ff')"></button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn-nav" onclick="closeEditModal()">取消</button>
+        <button class="btn-action" onclick="saveEditedData()">儲存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+     * 安全儲存封裝（防廣告機 LocalStorage 崩潰）
+     * ============================================================ */
+    const SafeStorage = {
+      memory: {},
+      getItem: function(key) {
+        try { return localStorage.getItem(key); } catch (e) { return this.memory[key] || null; }
+      },
+      setItem: function(key, val) {
+        try { localStorage.setItem(key, val); } catch (e) { this.memory[key] = val; }
+      },
+      removeItem: function(key) {
+        try { localStorage.removeItem(key); } catch (e) { delete this.memory[key]; }
+      }
+    };
+
+    /* ============================================================
+     * 1. 樣式、語速與浮動鈕位置管理
+     * ============================================================ */
+    const defaultStyles = {
+      cardWidth: 160,
+      cardHeight: 120,
+      cardFontSize: 18,
+      contentFontSize: 21,
+      speed: 1.0,
+      fabPos: 'right'
+    };
+
+    let currentRate = 1.0;
+    const audioPlayer = new Audio();
+
+    function loadCustomStyles() {
+      var saved = null;
+      try {
+        saved = JSON.parse(SafeStorage.getItem('tts_card_styles'));
+      } catch(e){}
+      saved = saved || defaultStyles;
+
+      document.getElementById('setting-card-w').value = saved.cardWidth || 160;
+      document.getElementById('setting-card-h').value = saved.cardHeight || 120;
+      document.getElementById('setting-card-font').value = saved.cardFontSize || 18;
+      document.getElementById('setting-content-font').value = saved.contentFontSize || 21;
+      document.getElementById('setting-speed').value = saved.speed || 1.0;
+      document.getElementById('setting-fab-pos').value = saved.fabPos || 'right';
+
+      currentRate = parseFloat(saved.speed) || 1.0;
+      audioPlayer.playbackRate = currentRate;
+
+      applyStylesToDOM(saved);
+    }
+
+    function applyStylesToDOM(s) {
+      document.documentElement.style.setProperty('--card-width', s.cardWidth + 'px');
+      document.documentElement.style.setProperty('--card-height', s.cardHeight + 'px');
+      document.documentElement.style.setProperty('--card-font-size', s.cardFontSize + 'px');
+      document.documentElement.style.setProperty('--content-font-size', s.contentFontSize + 'px');
+
+      // 設定浮動操作鈕位置 (right / bottom / left)
+      var dock = document.getElementById('fab-dock-container');
+      if (dock) {
+        dock.className = 'fab-dock fab-pos-' + (s.fabPos || 'right');
+      }
+    }
+
+    function saveCustomStyles() {
+      var newStyles = {
+        cardWidth: parseInt(document.getElementById('setting-card-w').value) || defaultStyles.cardWidth,
+        cardHeight: parseInt(document.getElementById('setting-card-h').value) || defaultStyles.cardHeight,
+        cardFontSize: parseInt(document.getElementById('setting-card-font').value) || defaultStyles.cardFontSize,
+        contentFontSize: parseInt(document.getElementById('setting-content-font').value) || defaultStyles.contentFontSize,
+        speed: parseFloat(document.getElementById('setting-speed').value) || 1.0,
+        fabPos: document.getElementById('setting-fab-pos').value || 'right'
+      };
+
+      currentRate = newStyles.speed;
+      audioPlayer.playbackRate = currentRate;
+
+      SafeStorage.setItem('tts_card_styles', JSON.stringify(newStyles));
+      applyStylesToDOM(newStyles);
+      alert('設定已儲存並立即生效！');
+    }
+
+    function setNewColor(c) { document.getElementById('new-bgcolor').value = c; }
+    function setEditColor(c) { document.getElementById('edit-bgcolor').value = c; }
+
+    /* ============================================================
+     * 2. 資料存儲與 CRUD
+     * ============================================================ */
+    const DEFAULT_AUTH_CODE = "1127";
+    let gasApiUrl = SafeStorage.getItem('gas_api_url') || 'https://script.google.com/macros/s/AKfycbxxzRRzI4EauHqcnScjDCX6LtGRzy_WGWXjlPMI2Bq7hoKKVoZoKSVN3Hi4y-ALkkod/exec';
+    
+    const defaultDemoData = [
+      { id: '1', topic: '晨間問候', content: '早安！今天也是充滿希望的一天。# 請深呼吸，準備開始新的挑戰！', bgColor: '#fef3c7' },
+      { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
+      { id: '3', topic: '深呼吸放鬆', content: '吸氣，一、二、三。# 吐氣，一、二、三。#', bgColor: '#dcfce7' }
+    ];
+
+    let cardsData = [];
+    try {
+      cardsData = JSON.parse(SafeStorage.getItem('tts_cards_data'));
+    } catch(e) {}
+    
+    if (!Array.isArray(cardsData) || cardsData.length === 0) {
+      cardsData = JSON.parse(JSON.stringify(defaultDemoData));
+    }
+
+    function initData() {
+      loadCustomStyles();
+      var savedGas = SafeStorage.getItem('gas_api_url');
+      if (savedGas) {
+        document.getElementById('gas-api-url').value = savedGas;
+        fetchSheetData();
+      } else {
+        renderHomeCards();
+        renderAdminTable();
+      }
+    }
+
+    function saveGasUrl() {
+      var url = document.getElementById('gas-api-url').value.trim();
+      SafeStorage.setItem('gas_api_url', url);
+      gasApiUrl = url;
+      alert('GAS 網址已儲存！');
+      fetchSheetData();
+    }
+
+    async function fetchSheetData() {
+      if (!gasApiUrl) {
+        renderHomeCards();
+        renderAdminTable();
+        return;
+      }
+      try {
+        var res = await fetch(gasApiUrl);
+        var data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          cardsData = data.map(function(item) {
+            return {
+              id: item.id ? item.id.toString() : Date.now().toString(),
+              topic: item.topic || '',
+              content: item.content || '',
+              bgColor: item.bgColor || '#ffffff'
+            };
+          });
+        } else {
+          cardsData = JSON.parse(JSON.stringify(defaultDemoData));
+        }
+        SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+        renderHomeCards();
+        renderAdminTable();
+      } catch (err) {
+        console.warn('GAS 讀取失敗，使用本機快取資料:', err);
+        renderHomeCards();
+        renderAdminTable();
+      }
+    }
+
+    async function addCardData() {
+      var topicInput = document.getElementById('new-topic');
+      var contentInput = document.getElementById('new-content');
+      var bgColor = document.getElementById('new-bgcolor').value || '#ffffff';
+      var topic = topicInput.value.trim();
+      var content = contentInput.value.trim();
+
+      if (!topic || !content) {
+        alert('請輸入主題與內容！');
+        return;
+      }
+
+      var newItem = { id: Date.now().toString(), topic: topic, content: content, bgColor: bgColor };
+      cardsData.push(newItem);
+      SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+      renderHomeCards();
+      renderAdminTable();
+
+      topicInput.value = '';
+      contentInput.value = '';
+      document.getElementById('new-bgcolor').value = '#ffffff';
+
+      if (gasApiUrl) {
+        try {
+          await fetch(gasApiUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'add', id: newItem.id, topic: newItem.topic, content: newItem.content, bgColor: newItem.bgColor })
+          });
+        } catch (e) {
+          console.error('寫入 Google 試算表失敗:', e);
+        }
+      }
+      alert('新增成功！');
+    }
+
+    function openEditModal(id) {
+      var item = cardsData.find(function(c) { return c.id.toString() === id.toString(); });
+      if (!item) return;
+      document.getElementById('edit-id').value = item.id;
+      document.getElementById('edit-topic').value = item.topic;
+      document.getElementById('edit-content').value = item.content;
+      document.getElementById('edit-bgcolor').value = item.bgColor || '#ffffff';
+      document.getElementById('modal-edit').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('modal-edit').classList.add('hidden');
+    }
+
+    async function saveEditedData() {
+      var id = document.getElementById('edit-id').value;
+      var topic = document.getElementById('edit-topic').value.trim();
+      var content = document.getElementById('edit-content').value.trim();
+      var bgColor = document.getElementById('edit-bgcolor').value || '#ffffff';
+
+      if (!topic || !content) {
+        alert('主題與內容不可為空！');
+        return;
+      }
+
+      var index = cardsData.findIndex(function(c) { return c.id.toString() === id.toString(); });
+      if (index !== -1) {
+        cardsData[index].topic = topic;
+        cardsData[index].content = content;
+        cardsData[index].bgColor = bgColor;
+        SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+        renderHomeCards();
+        renderAdminTable();
+      }
+
+      closeEditModal();
+
+      if (gasApiUrl) {
+        try {
+          await fetch(gasApiUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'update', id: id, topic: topic, content: content, bgColor: bgColor })
+          });
+        } catch (e) {
+          console.error('更新 Google 試算表失敗:', e);
+        }
+      }
+      alert('修改已儲存！');
+    }
+
+    async function deleteCardData(id) {
+      if (!confirm('確定要刪除此筆資料嗎？')) return;
+
+      cardsData = cardsData.filter(function(item) { return item.id.toString() !== id.toString(); });
+
+      if (cardsData.length === 0) {
+        cardsData = JSON.parse(JSON.stringify(defaultDemoData));
+        alert('已刪除所有自建主題，系統已為您自動載入預設卡牌！');
+      }
+
+      SafeStorage.setItem('tts_cards_data', JSON.stringify(cardsData));
+      renderHomeCards();
+      renderAdminTable();
+
+      if (gasApiUrl) {
+        try {
+          await fetch(gasApiUrl, {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete', id: id.toString() })
+          });
+        } catch (e) {
+          console.error('從 Google 試算表刪除失敗:', e);
+        }
+      }
+    }
+
+    /* ============================================================
+     * 3. 畫面切換與後台權限
+     * ============================================================ */
+    function showView(viewName) {
+      document.getElementById('view-home').classList.add('hidden');
+      document.getElementById('view-player').classList.add('hidden');
+      document.getElementById('view-admin').classList.add('hidden');
+
+      if (viewName === 'home') {
+        document.getElementById('view-home').classList.remove('hidden');
+        document.getElementById('page-title').textContent = '🎙️ 語音主題卡牌';
+      } else if (viewName === 'player') {
+        document.getElementById('view-player').classList.remove('hidden');
+        document.getElementById('page-title').textContent = '🔊 文字朗讀播放';
+      } else if (viewName === 'admin') {
+        document.getElementById('view-admin').classList.remove('hidden');
+        document.getElementById('page-title').textContent = '⚙️ 後台資料管理';
+      }
+    }
+
+    function openAdminAuth() {
+      var isLogged = SafeStorage.getItem('is_admin_logged_in');
+      if (isLogged === 'true') {
+        showView('admin');
+        return;
+      }
+      document.getElementById('auth-code').value = '';
+      document.getElementById('modal-auth').classList.remove('hidden');
+      setTimeout(function() {
+        document.getElementById('auth-code').focus();
+      }, 100);
+    }
+
+    function closeAuthModal() {
+      document.getElementById('modal-auth').classList.add('hidden');
+    }
+
+    function submitAuth() {
+      var code = document.getElementById('auth-code').value;
+      if (code === DEFAULT_AUTH_CODE) {
+        SafeStorage.setItem('is_admin_logged_in', 'true');
+        closeAuthModal();
+        showView('admin');
+      } else {
+        alert('驗證碼錯誤！');
+      }
+    }
+
+    function logoutAdmin() {
+      SafeStorage.removeItem('is_admin_logged_in');
+      alert('已成功登出後台！');
+      showView('home');
+    }
+
+    function renderHomeCards() {
+      var container = document.getElementById('card-list');
+      if (!container) return;
+      container.innerHTML = '';
+      
+      cardsData.forEach(function(item) {
+        var card = document.createElement('div');
+        card.className = 'topic-card';
+        card.style.backgroundColor = item.bgColor || '#ffffff';
+        card.innerHTML = '<div class="card-icon">📑</div><div class="card-title">' + (item.topic || '無主題') + '</div>';
+        card.onclick = function() { selectTopicAndPlay(item); };
+        container.appendChild(card);
+      });
+    }
+
+    function renderAdminTable() {
+      var tbody = document.getElementById('admin-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      cardsData.forEach(function(item) {
+        var tr = document.createElement('tr');
+        var color = item.bgColor || '#ffffff';
+        tr.innerHTML = 
+          '<td style="font-weight: 600; font-family: var(--font-kai);">' +
+            '<span class="color-dot" style="background-color: ' + color + ';"></span>' +
+            item.topic +
+          '</td>' +
+          '<td style="color: #444; font-size: 13px; white-space: pre-wrap; font-family: var(--font-kai);">' + item.content + '</td>' +
+          '<td style="text-align: center;">' +
+            '<button class="btn-edit" onclick="openEditModal(\'' + item.id + '\')">編輯</button>' +
+            '<button class="btn-del" onclick="deleteCardData(\'' + item.id + '\')">刪除</button>' +
+          '</td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function selectTopicAndPlay(item) {
+      document.getElementById('text-input').value = item.content;
+      document.getElementById('playing-topic-name').textContent = '主題：' + item.topic;
+      showView('player');
+      startSpeakingNow();
+    }
+
+    function stopAndBackHome() {
+      stopAudio();
+      showView('home');
+    }
+
+    /* ============================================================
+     * 4. 雲端高音質語音串流引擎 (HTML5 Audio)
+     * ============================================================ */
+    const textInput = document.getElementById('text-input');
+    const fabLoopBtn = document.getElementById('fab-loop-btn');
+
+    let isLooping = false;
+    let isManualStop = false;
+    let isPausedState = false;
+
+    let sentenceQueue = [];
+    let currentSentenceIndex = 0;
+    let loopStartIndex = 0;
+    let loopEndIndex = null;
+
+    function getCloudTtsUrl(text) {
+      const isEnglishOnly = /^[a-zA-Z0-9\s.,?!'#\-]+$/.test(text);
+      const lang = isEnglishOnly ? 'en-US' : 'zh-TW';
+      return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + lang + '&q=' + encodeURIComponent(text);
+    }
+
+    function splitTextIntoChunks(text) {
+      var regex = /[^#，,。？！.?!;\n\r]+[，,。？！.?!;\n\r]*|#/g;
+      var chunks = text.match(regex);
+      return chunks || [text];
+    }
+
+    function findNextHashIndex(startIndex) {
+      for (var i = startIndex; i < sentenceQueue.length; i++) {
+        if ((sentenceQueue[i] || '').trim() === '#') return i;
+      }
+      return null;
+    }
+
+    // 播放句子核心
+    function playNextChunk() {
+      if (isManualStop || isPausedState) return;
+
+      if (currentSentenceIndex >= sentenceQueue.length) {
+        isPausedState = false;
+        isManualStop = false;
+        currentSentenceIndex = 0;
+        return;
+      }
+
+      var chunkText = (sentenceQueue[currentSentenceIndex] || '').trim();
+
+      if (!chunkText) {
+        currentSentenceIndex++;
+        playNextChunk();
+        return;
+      }
+
+      // 遇到 # 標籤處理
+      if (chunkText === '#') {
+        if (isLooping) {
+          // 重複模式：循環回起點
+          loopStartIndex = Math.max(0, loopStartIndex);
+          currentSentenceIndex = loopStartIndex;
+          setTimeout(playNextChunk, 80);
+          return;
+        }
+        // 非重複模式：停在當前位置，等待按「繼續」
+        isPausedState = true;
+        audioPlayer.pause();
+        return;
+      }
+
+      audioPlayer.src = getCloudTtsUrl(chunkText);
+      audioPlayer.playbackRate = currentRate;
+
+      var playPromise = audioPlayer.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(function(err) {
+          console.warn("播放中斷重試:", err);
+          if (!isManualStop && !isPausedState) {
+            currentSentenceIndex++;
+            playNextChunk();
+          }
+        });
+      }
+    }
+
+    audioPlayer.onended = function() {
+      if (isManualStop || isPausedState) return;
+      currentSentenceIndex++;
+      playNextChunk();
+    };
+
+    audioPlayer.onerror = function() {
+      if (isManualStop || isPausedState) return;
+      currentSentenceIndex++;
+      playNextChunk();
+    };
+
+    function startSpeakingNow() {
+      audioPlayer.pause();
+      isManualStop = false;
+      isPausedState = false;
+      currentSentenceIndex = 0;
+
+      var fullText = textInput.value;
+      if (fullText.trim() === '') {
+        if (cardsData.length > 0) {
+          selectTopicAndPlay(cardsData[0]);
+          return;
+        }
+        textInput.focus();
+        return;
+      }
+
+      var startPos = textInput.selectionStart || 0;
+      var textSegment = fullText.substring(startPos);
+      if (textSegment.trim().length === 0) textSegment = fullText;
+      textSegment = textSegment.trim();
+
+      sentenceQueue = splitTextIntoChunks(textSegment);
+      loopStartIndex = 0;
+      loopEndIndex = findNextHashIndex(loopStartIndex);
+
+      playNextChunk();
+    }
+
+    /* ============================================================
+     * 5. 浮動操作鈕功能綁定
+     * ============================================================ */
+
+    // 1. 浮動播放：從頭播放
+    function handleFabPlay() {
+      if (document.getElementById('view-player').classList.contains('hidden')) {
+        showView('player');
+      }
+      startSpeakingNow();
+    }
+
+    // 2. 浮動繼續：遇到 # 暫停或手動暫停時，直接按繼續接著播放
+    function handleFabResume() {
+      if (document.getElementById('view-player').classList.contains('hidden')) {
+        showView('player');
+      }
+
+      // 如果當前句子是 #，主動推進到下一句
+      if (currentSentenceIndex < sentenceQueue.length && (sentenceQueue[currentSentenceIndex] || '').trim() === '#') {
+        currentSentenceIndex++;
+      }
+
+      isPausedState = false;
+      isManualStop = false;
+
+      // 如果音訊暫停中且是同一句
+      if (audioPlayer.paused && audioPlayer.src && audioPlayer.currentTime > 0) {
+        audioPlayer.play().catch(function() {
+          playNextChunk();
+        });
+      } else {
+        playNextChunk();
+      }
+    }
+
+    // 3. 浮動重複：切換重複播放 (循環)
+    function toggleFabLoop() {
+      isLooping = !isLooping;
+      if (fabLoopBtn) {
+        fabLoopBtn.classList.toggle('active', isLooping);
+      }
+    }
+
+    // 4. 浮動停止
+    function stopAudio() {
+      isManualStop = true;
+      isPausedState = false;
+      audioPlayer.pause();
+      audioPlayer.currentTime = 0;
+      sentenceQueue = [];
+      currentSentenceIndex = 0;
+      loopStartIndex = 0;
+      loopEndIndex = null;
+    }
+
+    // 啟動初始化
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initData);
+    } else {
+      initData();
+    }
+  </script>
+</body>
+</html>
