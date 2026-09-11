@@ -323,7 +323,7 @@
       font-family: var(--font-hei);
     }
 
-    /* 浮動操作按鈕 (5 合 1) */
+    /* 浮動操作按鈕 */
     .fab-dock {
       position: fixed;
       display: flex;
@@ -409,7 +409,7 @@
       </div>
 
       <div class="content-wrapper">
-        <div id="text-input" contenteditable="true" placeholder="可直接輸入文字或插入圖片語法 <img src='網址'>..."></div>
+        <div id="text-input" contenteditable="true" placeholder="輸入文字..."></div>
       </div>
     </div>
 
@@ -490,11 +490,11 @@
         <h3>➕ 新增卡牌主題與內容</h3>
         <div class="form-group">
           <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
-          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀">
+          <input type="text" id="new-topic" class="form-input" placeholder="例：學務處有哪些老師？">
         </div>
         <div class="form-group">
-          <label style="font-size: 13px; font-weight: 600;">內容 (Content，支援插入圖片語法：&lt;img src="圖片網址"&gt;)</label>
-          <textarea id="new-content" class="form-input" style="height: 90px;" placeholder="輸入朗讀文字，支援 # 分段與 <img src='圖片網址'>"></textarea>
+          <label style="font-size: 13px; font-weight: 600;">內容 (Content，支援貼上 Google 雲端圖片連結)</label>
+          <textarea id="new-content" class="form-input" style="height: 90px;" placeholder="輸入文字，可換行，支援貼上圖片語法"></textarea>
         </div>
         
         <!-- 卡牌背景顏色設定 -->
@@ -668,6 +668,7 @@
 
     let currentRate = 1.0;
     const audioPlayer = new Audio();
+    audioPlayer.volume = 1.0;
 
     function loadCustomStyles() {
       var saved = null;
@@ -735,8 +736,8 @@
     const defaultDemoData = [
       { 
         id: '1', 
-        topic: '晨間美景', 
-        content: '早安！今天也是充滿希望的一天。<img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80"># 請深呼吸，準備開始新的挑戰！', 
+        topic: '學務處有哪些老師？', 
+        content: '學務主任、訓育組長、生教組長<br>體育組長、環衛組長、護理師<br><img src="https://drive.google.com/thumbnail?id=18jQvtNCaO6XivsDvBnkZp3e84NXVg0Ar&sz=w1000">', 
         bgColor: '#fef3c7' 
       },
       { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
@@ -1020,7 +1021,7 @@
     }
 
     /* ============================================================
-     * 4. 藍牙防斷片高音質語音串流引擎 (iPadOS 相容優化)
+     * 4. 智慧語音串流引擎 (iPad 藍牙平滑換行與無縫朗讀優化)
      * ============================================================ */
     const textInput = document.getElementById('text-input');
     const fabLoopBtn = document.getElementById('fab-loop-btn');
@@ -1054,36 +1055,46 @@
       return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + lang + '&q=' + encodeURIComponent(text);
     }
 
-    /* 智慧分句引擎：跳行自動轉為自然頓點連貫發音，消滅藍牙吃字斷片 */
+    /* 核心修復：智慧分段與平滑換行整合（防止 iPad 藍牙因頻繁小音訊而淡入淡出斷音） */
     function splitTextIntoChunks(text) {
-      const rawSections = text.split(/(#)/g);
-      const result = [];
+      if (!text) return [];
+      
+      // 1. 先以 '#' 進行大區段切割（保留 '#' 作為獨立暫停點）
+      var sections = text.split(/(#)/g);
+      var chunks = [];
 
-      for (let i = 0; i < rawSections.length; i++) {
-        const sec = rawSections[i];
+      sections.forEach(function(sec) {
         if (sec === '#') {
-          result.push('#');
-          continue;
+          chunks.push('#');
+          return;
         }
+        if (!sec.trim()) return;
 
-        let cleaned = sec.trim();
-        if (!cleaned) continue;
+        // 2. 針對各區段，以句號、問號、驚嘆號或換行切割，但平滑合併短句（上限 60 字）
+        var rawSubChunks = sec.split(/([。？！!?\n\r]+)/g);
+        var temp = "";
 
-        // 區段若在 120 字內，將換行轉為自然頓點「，」，整合成連貫音訊，避免藍牙連續切換檔案導致吃字
-        if (cleaned.length <= 120) {
-          const merged = cleaned.replace(/[\r\n]+/g, '，');
-          result.push(merged);
-        } else {
-          // 超過 120 字依句號/問號/驚嘆號切分為自然長句
-          const sentences = cleaned.match(/[^。！？.!?\n\r]+[。！？.!?\n\r]*|.+/g) || [cleaned];
-          for (let s of sentences) {
-            const sTrim = s.trim().replace(/[\r\n]+/g, '，');
-            if (sTrim) result.push(sTrim);
+        for (var i = 0; i < rawSubChunks.length; i++) {
+          var part = rawSubChunks[i];
+          if (!part) continue;
+
+          // 將換行符號平滑轉換為自然的語氣停頓
+          var cleanPart = part.replace(/[\r\n]+/g, '，').trim();
+          if (!cleanPart) continue;
+
+          if (temp.length + cleanPart.length <= 60) {
+            temp += (temp ? ' ' : '') + cleanPart;
+          } else {
+            if (temp.trim()) chunks.push(temp.trim());
+            temp = cleanPart;
           }
         }
-      }
+        if (temp.trim()) {
+          chunks.push(temp.trim());
+        }
+      });
 
-      return result.length > 0 ? result : [text];
+      return chunks;
     }
 
     function findNextHashIndex(startIndex) {
@@ -1132,7 +1143,7 @@
         // ⏸ 一般模式：停在 # 處，等待使用者按「繼續」
         isPausedState = true;
         audioPlayer.pause();
-        loopStartIndex = currentSentenceIndex + 1; // 記錄下一區段的起點
+        loopStartIndex = currentSentenceIndex + 1; // 記錄下一區段起點
         updateFabResumeBtnState(true);
         return;
       }
