@@ -187,7 +187,7 @@
     }
     div#text-input:focus { border-color: var(--primary); }
 
-    /* 嵌入圖片的自適應美化樣式 */
+    /* 嵌入圖片美化樣式 */
     div#text-input img {
       max-width: 100%;
       height: auto;
@@ -409,7 +409,7 @@
       </div>
 
       <div class="content-wrapper">
-        <div id="text-input" contenteditable="true" placeholder="輸入文字..."></div>
+        <div id="text-input" contenteditable="true" placeholder="可直接輸入文字或插入圖片語法 <img src='網址'>..."></div>
       </div>
     </div>
 
@@ -490,11 +490,11 @@
         <h3>➕ 新增卡牌主題與內容</h3>
         <div class="form-group">
           <label style="font-size: 13px; font-weight: 600;">主題 (Topic)</label>
-          <input type="text" id="new-topic" class="form-input" placeholder="例：學務處有哪些老師？">
+          <input type="text" id="new-topic" class="form-input" placeholder="例：晨間朗讀">
         </div>
         <div class="form-group">
-          <label style="font-size: 13px; font-weight: 600;">內容 (Content，支援貼上 Google 雲端圖片連結)</label>
-          <textarea id="new-content" class="form-input" style="height: 90px;" placeholder="輸入文字，可換行，支援貼上圖片語法"></textarea>
+          <label style="font-size: 13px; font-weight: 600;">內容 (Content，支援插入圖片語法：&lt;img src="圖片網址"&gt;)</label>
+          <textarea id="new-content" class="form-input" style="height: 90px;" placeholder="輸入朗讀文字，支援 # 分段與 <img src='圖片網址'>"></textarea>
         </div>
         
         <!-- 卡牌背景顏色設定 -->
@@ -635,7 +635,7 @@
         text = text.replace(/\r?\n/g, '<br>');
       }
 
-      // 自動將 Google Drive 網址轉換為可靠的縮圖與直連圖片串流
+      // 自動將 Google Drive 網址轉換為縮圖直連
       text = text.replace(
         /(https:\/\/drive\.google\.com\/(?:file\/d\/|open\?id=|thumbnail\?id=)([a-zA-Z0-9_-]+)[^\s"'>]*)/g,
         function(match, p1, id) {
@@ -668,7 +668,6 @@
 
     let currentRate = 1.0;
     const audioPlayer = new Audio();
-    audioPlayer.volume = 1.0;
 
     function loadCustomStyles() {
       var saved = null;
@@ -736,8 +735,8 @@
     const defaultDemoData = [
       { 
         id: '1', 
-        topic: '學務處有哪些老師？', 
-        content: '學務主任、訓育組長、生教組長<br>體育組長、環衛組長、護理師<br><img src="https://drive.google.com/thumbnail?id=18jQvtNCaO6XivsDvBnkZp3e84NXVg0Ar&sz=w1000">', 
+        topic: '晨間美景', 
+        content: '早安！今天也是充滿希望的一天。<img src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=80"># 請深呼吸，準備開始新的挑戰！', 
         bgColor: '#fef3c7' 
       },
       { id: '2', topic: '英語短句', content: 'Practice makes perfect. # Never give up on your dreams. #', bgColor: '#e0e7ff' },
@@ -1021,7 +1020,7 @@
     }
 
     /* ============================================================
-     * 4. 智慧語音串流引擎 (iPad 藍牙平滑換行與無縫朗讀優化)
+     * 4. iPad 藍牙防斷音 / 防降音 / 防跳行吃字 語音串流引擎
      * ============================================================ */
     const textInput = document.getElementById('text-input');
     const fabLoopBtn = document.getElementById('fab-loop-btn');
@@ -1033,7 +1032,6 @@
     let sentenceQueue = [];
     let currentSentenceIndex = 0;
     let loopStartIndex = 0;
-    let loopEndIndex = null;
 
     function updateFabResumeBtnState(isPaused) {
       const iconEl = document.getElementById('fab-resume-icon');
@@ -1055,68 +1053,54 @@
       return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + lang + '&q=' + encodeURIComponent(text);
     }
 
-    /* 核心修復：智慧分段與平滑換行整合（防止 iPad 藍牙因頻繁小音訊而淡入淡出斷音） */
+    /* 智慧分段演算法：跳行轉平滑語氣，長句才分塊，避免藍牙切碎吃字 */
     function splitTextIntoChunks(text) {
-      if (!text) return [];
-      
-      // 1. 先以 '#' 進行大區段切割（保留 '#' 作為獨立暫停點）
+      // 1. 先依據 '#' 標籤精準切分區段
       var sections = text.split(/(#)/g);
       var chunks = [];
 
       sections.forEach(function(sec) {
+        sec = (sec || '').trim();
+        if (!sec) return;
+        
         if (sec === '#') {
           chunks.push('#');
           return;
         }
-        if (!sec.trim()) return;
 
-        // 2. 針對各區段，以句號、問號、驚嘆號或換行切割，但平滑合併短句（上限 60 字）
-        var rawSubChunks = sec.split(/([。？！!?\n\r]+)/g);
-        var temp = "";
+        // 2. 將同一區段內的跳行轉換為自然語意逗號，形成飽滿完整的語音串流
+        var smoothText = sec.replace(/[\r\n]+/g, '，');
+        smoothText = smoothText.replace(/[，,]{2,}/g, '，').trim();
 
-        for (var i = 0; i < rawSubChunks.length; i++) {
-          var part = rawSubChunks[i];
-          if (!part) continue;
-
-          // 將換行符號平滑轉換為自然的語氣停頓
-          var cleanPart = part.replace(/[\r\n]+/g, '，').trim();
-          if (!cleanPart) continue;
-
-          if (temp.length + cleanPart.length <= 60) {
-            temp += (temp ? ' ' : '') + cleanPart;
-          } else {
-            if (temp.trim()) chunks.push(temp.trim());
-            temp = cleanPart;
-          }
-        }
-        if (temp.trim()) {
-          chunks.push(temp.trim());
+        // 3. 若長度在安全字數內 (<= 100 字)，作為整段音訊發送，藍牙 100% 滿格不中斷
+        if (smoothText.length <= 100) {
+          chunks.push(smoothText);
+        } else {
+          // 超長段落才以主要標點切分
+          var subRegex = /[^。？！?!；;]+[。？！?!；;]*|.+/g;
+          var subs = smoothText.match(subRegex) || [smoothText];
+          subs.forEach(function(s) {
+            s = s.trim();
+            if (s) chunks.push(s);
+          });
         }
       });
 
       return chunks;
     }
 
-    function findNextHashIndex(startIndex) {
-      for (var i = startIndex; i < sentenceQueue.length; i++) {
-        if ((sentenceQueue[i] || '').trim() === '#') return i;
-      }
-      return null;
-    }
-
-    /* 播放句子核心函式 */
+    /* 播放句子核心函式 (保證全文讀完才停止) */
     function playNextChunk() {
       if (isManualStop || isPausedState) return;
 
       // 檢查是否已讀完所有句子
       if (currentSentenceIndex >= sentenceQueue.length) {
         if (isLooping && sentenceQueue.length > 0) {
-          // 重複播放啟用時：跳回段落起點（或全文開頭）無限循環
           currentSentenceIndex = loopStartIndex || 0;
           setTimeout(playNextChunk, 80);
           return;
         }
-        // 未開啟重複播放：播放完畢自然結束
+        // 全文完整讀完自然結束
         isPausedState = false;
         isManualStop = false;
         currentSentenceIndex = 0;
@@ -1135,20 +1119,18 @@
       // 遇到 # 分段標籤處理
       if (chunkText === '#') {
         if (isLooping) {
-          // 🔁 重複播放模式：跳回該區段開頭循環
           currentSentenceIndex = loopStartIndex || 0;
           setTimeout(playNextChunk, 80);
           return;
         }
-        // ⏸ 一般模式：停在 # 處，等待使用者按「繼續」
         isPausedState = true;
         audioPlayer.pause();
-        loopStartIndex = currentSentenceIndex + 1; // 記錄下一區段起點
+        loopStartIndex = currentSentenceIndex + 1;
         updateFabResumeBtnState(true);
         return;
       }
 
-      updateFabResumeBtnState(false); // 播放中顯示「暫停」
+      updateFabResumeBtnState(false);
 
       audioPlayer.src = getCloudTtsUrl(chunkText);
       audioPlayer.playbackRate = currentRate;
@@ -1177,7 +1159,7 @@
       playNextChunk();
     };
 
-    /* 啟動朗讀全文（智能過濾 <img>，只讀純文字） */
+    /* 啟動朗讀全文 */
     function startSpeakingNow() {
       audioPlayer.pause();
       isManualStop = false;
@@ -1199,8 +1181,6 @@
       }
 
       sentenceQueue = splitTextIntoChunks(fullText);
-      loopStartIndex = 0;
-      loopEndIndex = findNextHashIndex(loopStartIndex);
 
       updateFabResumeBtnState(false);
       playNextChunk();
@@ -1218,13 +1198,13 @@
       startSpeakingNow();
     }
 
-    // 2. 浮動暫停 / 繼續播放：播放中即時暫停，暫停後接續播放
+    // 2. 浮動暫停 / 繼續播放
     function handleFabResume() {
       if (document.getElementById('view-player').classList.contains('hidden')) {
         showView('player');
       }
 
-      // 情況 A：目前正在播放中 -> 執行【即時暫停】
+      // 正在播放中 -> 即時暫停
       if (!audioPlayer.paused && !isPausedState) {
         isPausedState = true;
         audioPlayer.pause();
@@ -1232,30 +1212,27 @@
         return;
       }
 
-      // 情況 B：目前處於暫停狀態 -> 執行【接續播放】
+      // 暫停狀態 -> 接續播放
       isPausedState = false;
       isManualStop = false;
       updateFabResumeBtnState(false);
 
-      // 子情況 1：停在 # 處，直接推進到下一句
       if (currentSentenceIndex < sentenceQueue.length && (sentenceQueue[currentSentenceIndex] || '').trim() === '#') {
         currentSentenceIndex++;
         playNextChunk();
         return;
       }
 
-      // 子情況 2：在句子中途中斷，接續播放當前句子
       if (audioPlayer.src && audioPlayer.currentTime > 0 && !audioPlayer.ended) {
         audioPlayer.play().catch(function() {
           playNextChunk();
         });
       } else {
-        // 子情況 3：載入並播放當前或下一句
         playNextChunk();
       }
     }
 
-    // 3. 浮動重複：切換重複播放 (循環)
+    // 3. 浮動重複：切換重複播放
     function toggleFabLoop() {
       isLooping = !isLooping;
       if (fabLoopBtn) {
@@ -1272,7 +1249,6 @@
       sentenceQueue = [];
       currentSentenceIndex = 0;
       loopStartIndex = 0;
-      loopEndIndex = null;
       updateFabResumeBtnState(true);
     }
 
